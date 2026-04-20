@@ -1,0 +1,28 @@
+Tablas y Relaciones
+usuarios: Almacena al personal.
+Campos: id (PK), nombre, email, password (encriptado con bcrypt), rol (admin, mozo, caja).
+
+mesas: Estado del salón en tiempo real.
+Campos: id (PK), numero_mesa, estado (libre, ocupada, cuenta_pedida).
+
+categorias: Organización del menú.
+Campos: id (PK), nombre (Entradas, Fondos, Bebidas, etc.).
+
+productos: Catálogo de platos y bebidas.
+Campos: id (PK), nombre, precio, categoria_id (FK), zona_preparacion (cocina o barra).
+
+pedidos: Cabecera de la orden.
+Campos: id (PK), mesa_id (FK), usuario_id (FK - el mozo que tomó el pedido), fecha_hora, estado (pendiente, entregado, pagado).
+
+detalle_pedidos: Detalle específico de cada plato solicitado.
+Campos: id (PK), pedido_id (FK), producto_id (FK), cantidad, nota (ej: "sin cebolla"), subtotal.
+
+ventas: Registro final para arqueos y SUNAT.
+Campos: id (PK), pedido_id (FK), metodo_pago (efectivo, yape, tarjeta), total, xml_sunat (data enviada), fecha_hora.
+
+Relaciones Lógicas
+1:N Usuarios a Pedidos: Un mozo puede registrar muchos pedidos.
+1:N Mesas a Pedidos: Una mesa puede tener múltiples pedidos a lo largo del día, pero solo uno activo (ocupado) a la vez.
+1:N Categorías a Productos: Una categoría contiene múltiples platos.
+1:N Pedidos a Detalle_pedidos: Un pedido contiene uno o varios productos.
+1:1 Pedidos a Ventas: Cada pedido cerrado genera exactamente un registro de venta para la facturación electrónica.

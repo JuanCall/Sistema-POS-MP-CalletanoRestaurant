@@ -1,0 +1,8 @@
+Instalar dependencias: Ejecutar npm install.
+
+Configurar entorno: Crear un archivo .env basado en un .env.example. 
+Debe contener las credenciales de PostgreSQL (DB_USER, DB_HOST, DB_NAME, DB_PASSWORD, DB_PORT) y el puerto del servidor.
+
+Base de Datos: Ejecutar el script db_schema.sql (que debe preparar Raul) en su instancia local de PostgreSQL para crear las tablas.
+
+Iniciar servidor: Ejecutar npm run dev (configurado con nodemon para reinicio automático).

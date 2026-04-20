@@ -1,3 +1,8 @@
+Instalar dependencias: Ejecutar npx expo install.Sincronizar: 
+Configurar la dirección IP del servidor en el servicio de red para que la tablet reconozca el backend en la red local.
+Ejecutar: Usar npx expo start y escanear el código QR con la tablet Android.
+
+
 Responsable: Juan (Solo)
 
 Semana 1 (Cimientos):

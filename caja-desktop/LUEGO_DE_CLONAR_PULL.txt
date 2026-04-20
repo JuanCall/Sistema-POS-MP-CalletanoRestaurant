@@ -1,0 +1,6 @@
+Instalar dependencias: Ejecutar npm install.
+
+Vincular API: En el archivo de configuración de servicios (ej. src/config.js), 
+asegurarse de que la URL apunte a la dirección IP del servidor local del Backend.
+
+Ejecutar: Usar el comando npm start para lanzar la ventana de Electron.
