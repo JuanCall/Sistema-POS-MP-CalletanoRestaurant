@@ -1,28 +1,84 @@
-Tablas y Relaciones
-usuarios: Almacena al personal.
-Campos: id (PK), nombre, email, password (encriptado con bcrypt), rol (admin, mozo, caja).
+Tabla: usuarios
+id_usuario (PK, Integer, Auto-incremental)
+nombre (Varchar)
+email (Varchar)
+password (encriptado con bcrypt)
+rol (Varchar) (Valores: 'MOZO', 'CAJERO', 'ADMIN')
 
-mesas: Estado del salón en tiempo real.
-Campos: id (PK), numero_mesa, estado (libre, ocupada, cuenta_pedida).
+Tabla: categorias
+id_categoria (PK, Integer, Auto-incremental)
+nombre (Varchar) (Ej. Entradas, Bebidas Heladas)
+etiqueta_col1 (Varchar, Nullable) (Ej. "Personal")
+etiqueta_col2 (Varchar, Nullable) (Ej. "Fuente")
 
-categorias: Organización del menú.
-Campos: id (PK), nombre (Entradas, Fondos, Bebidas, etc.).
+Tabla: productos
+id_producto (PK, Integer, Auto-incremental)
+id_categoria (FK, Integer) -> Relacionado con categorias
+nombre (Varchar)
+precio_unico (Decimal, Nullable) (Para platos con un solo precio)
+precio_col1 (Decimal, Nullable) (Precio personal)
+precio_col2 (Decimal, Nullable) (Precio fuente)
+disponible (Boolean, Default: True)
 
-productos: Catálogo de platos y bebidas.
-Campos: id (PK), nombre, precio, categoria_id (FK), zona_preparacion (cocina o barra).
+Tabla: menu_diario
+id_menu (PK, Integer, Auto-incremental)
+fecha (Date) (Permite tener un histórico de menús
+modo_domingo (Boolean)
+refresco (Varchar)
 
-pedidos: Cabecera de la orden.
-Campos: id (PK), mesa_id (FK), usuario_id (FK - el mozo que tomó el pedido), fecha_hora, estado (pendiente, entregado, pagado).
+Tabla: menu_diario_platos
+id_plato_menu (PK, Integer, Auto-incremental)
+id_menu (FK, Integer) -> Relacionado con menu_diario
+tipo (Varchar) (Valores: 'ENTRADA' o 'SEGUNDO')
+nombre (Varchar)
+precio (Decimal)
 
-detalle_pedidos: Detalle específico de cada plato solicitado.
-Campos: id (PK), pedido_id (FK), producto_id (FK), cantidad, nota (ej: "sin cebolla"), subtotal.
+Tabla: mesas
+id_mesa (PK, Integer)
+numero (Integer) (Del 1 al 15)
+estado (Varchar) (Valores: 'LIBRE', 'OCUPADA')
 
-ventas: Registro final para arqueos y SUNAT.
-Campos: id (PK), pedido_id (FK), metodo_pago (efectivo, yape, tarjeta), total, xml_sunat (data enviada), fecha_hora.
+Tabla: pedidos
+id_pedido (PK, Integer, Auto-incremental)
+id_mesa (FK, Integer) -> Relacionado con mesas
+id_usuario (FK, Integer) -> Relacionado con usuarios (Mozo que atiende)
+estado (Varchar) (Valores: 'EN_ATENCION', 'PAGADO', 'ANULADO')
+fecha_apertura (Timestamp)
+
+Tabla: detalle_pedidos
+id_detalle (PK, Integer, Auto-incremental)
+id_pedido (FK, Integer) -> Relacionado con pedidos
+tipo_item (Varchar) (Valores: 'CARTA' o 'MENU')
+id_producto (FK, Integer, Nullable) -> Si pidió de la carta
+id_plato_menu (FK, Integer, Nullable) -> Si pidió del menú del día
+cantidad (Integer)
+precio_unitario (Decimal)
+notas (Varchar, Nullable) (Ej. "Sin cebolla")
+estado_impresion (Varchar) (Valores: 'PENDIENTE', 'IMPRESO')
+
+Tabla: ventas
+id_venta (PK, Integer, Auto-incremental)
+id_pedido (FK, Integer) -> Relacionado con pedidos
+cajero_id (FK, Integer) -> Relacionado con usuarios
+fecha_emision (Timestamp)
+subtotal (Decimal)
+igv (Decimal)
+total (Decimal)
+metodo_pago (Varchar) (Efectivo, Yape, Plin, Tarjeta)
+comprobante_sunat (Varchar, Nullable) (Ej. B001-000456)
+
+Tabla: gastos
+id_gasto (PK, Integer, Auto-incremental)
+fecha (Timestamp)
+descripcion (Varchar)
+monto (Decimal)
+id_usuario (FK, Integer) -> Quién registró el gasto
 
 Relaciones Lógicas
-1:N Usuarios a Pedidos: Un mozo puede registrar muchos pedidos.
-1:N Mesas a Pedidos: Una mesa puede tener múltiples pedidos a lo largo del día, pero solo uno activo (ocupado) a la vez.
-1:N Categorías a Productos: Una categoría contiene múltiples platos.
-1:N Pedidos a Detalle_pedidos: Un pedido contiene uno o varios productos.
-1:1 Pedidos a Ventas: Cada pedido cerrado genera exactamente un registro de venta para la facturación electrónica.
+Una Categoría tiene muchos Productos (1:N).
+Un Menú Diario tiene muchos Platos de Menú (Entradas/Segundos) (1:N).
+Una Mesa puede tener muchos Pedidos a lo largo del tiempo, pero solo uno activo a la vez (1:N).
+Un Pedido tiene muchos Detalles de Pedido (los platos) (1:N).
+Un Detalle de Pedido se relaciona o bien con un Producto (Carta) o con un Plato de Menú (1:1 condicional).
+Un Pedido cerrado genera exactamente una Venta (1:1).
+Un Usuario (Mozo) genera muchos Pedidos, y un Usuario (Cajero) procesa muchas Ventas (1:N).
