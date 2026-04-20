@@ -1,0 +1,50 @@
+Responsables: Dyer (Dev) y Raul (Analista)
+
+Semana 1 (Cimientos):
+
+
+Raul: Creación de docs/db_schema.sql. Diseñar las tablas de usuarios, productos y mesas con sus tipos de datos y llaves primarias/foráneas.
+
+Dyer: Creación de src/server.js. Inicializar el servidor Express básico, configurar los middlewares de CORS y JSON, y definir el puerto de escucha.
+
+Dyer: Creación de src/config/database.js. Configurar el pool de conexión a PostgreSQL usando la librería pg, ocultando las credenciales en un archivo .env.
+
+Raul: Creación de docs/api_endpoints.md. Documentar la lista de rutas necesarias (GET productos, POST pedidos) con los códigos de estado esperados.
+
+Dyer: Creación de src/routes/authRoutes.js. Implementar la lógica de verificación de credenciales contra la base de datos (Login básico).
+
+Semana 2 (Lógica Base):
+
+Dyer: Creación de src/controllers/productController.js. Lógica para consultar todos los platos y categorías desde PostgreSQL y enviarlos como JSON.
+
+Raul: Actualización de docs/db_schema.sql. Añadir tablas de pedidos y detalle_pedidos con estados (pendiente, entregado, pagado).
+
+Dyer: Creación de src/controllers/orderController.js. Lógica para recibir un JSON complejo de pedido, insertarlo en la base de datos y devolver el ID generado.
+
+Raul: Creación de docs/validation_rules.md. Especificar qué campos son obligatorios en un pedido para evitar errores de base de datos.
+
+Dyer: Creación de src/routes/orderRoutes.js. Configurar los endpoints para crear y consultar el estado de las mesas en tiempo real.
+
+Semana 3 (Tiempo Real):
+
+Dyer: Creación de src/sockets/socketMain.js. Inicializar Socket.io, configurar los eventos de conexión y desconexión.
+
+Raul: Creación de docs/socket_events.md. Definir el nombre de los eventos (ej: pedido-enviado, actualizar-caja) para que el mozo y la caja hablen el mismo lenguaje.
+
+Dyer: Actualización de src/controllers/orderController.js. Integrar Socket.io para que al guardar un pedido exitoso, se emita un broadcast a todos los clientes conectados.
+
+Dyer: Creación de src/sockets/handlers.js. Lógica para manejar reconexiones automáticas si el servidor Socket.io se cae temporalmente.
+
+Raul: Creación de docs/error_handling.md. Definir respuestas estándar para cuando el servidor falle o la base de datos esté ocupada.
+
+Semana 4 (Integración):
+
+Dyer: Creación de src/controllers/billingController.js. Lógica para cerrar una mesa y calcular el total, preparándolo para el módulo de facturación electrónica.
+
+Raul: Creación de docs/deployment_guide.md. Pasos para instalar el backend en el servidor local del restaurante.
+
+Dyer: Creación de src/utils/logger.js. Implementar un sistema de registro de errores en archivos de texto para auditoría.
+
+Raul: Creación de docs/backup_strategy.sql. Scripts para realizar copias de seguridad automáticas de la base de datos PostgreSQL.
+
+Dyer: Actualización de src/server.js. Refinar la seguridad de los encabezados HTTP antes de la entrega final.

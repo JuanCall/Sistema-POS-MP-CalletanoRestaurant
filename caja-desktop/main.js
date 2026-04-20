@@ -14,7 +14,7 @@ function createWindow () {
   });
 
   // Carga tu archivo HTML principal
-  mainWindow.loadFile(path.join(__dirname, 'src', 'caja.html'));
+  mainWindow.loadFile(path.join(__dirname, 'src', '.html'));
   
   mainWindow.webContents.openDevTools();
 }
