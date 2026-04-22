@@ -2,11 +2,23 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import CartItem from '../src/components/CartItem';
+import { socketService } from '../src/services/socket';
 
 export default function MenuScreen() {
   const router = useRouter();
   // Recibimos el número de mesa que nos mandó la pantalla Home
   const { mesa } = useLocalSearchParams(); 
+
+  useEffect(() => {
+    // Iniciamos la conexión de Socket.io
+    socketService.conectar();
+
+    // Limpiamos la conexión cuando el mozo sale de la pantalla
+    return () => {
+      // Opcional: socketService.desconectar(); 
+      // Dependiendo de si se quiere mantener la conexión viva en toda la app
+    };
+  }, []);
 
   const [categoriaActiva, setCategoriaActiva] = useState('Entradas');
   const [carrito, setCarrito] = useState([]);
@@ -43,11 +55,27 @@ export default function MenuScreen() {
   };
 
   const enviarPedido = () => {
-    // En el Sprint 3, aquí usaremos Socket.io
-    Alert.alert('¡Enviado!', `El pedido de la Mesa ${mesa} ha sido enviado a cocina.`);
-    setCarrito([]); // Vaciamos el carrito
-    setModalVisible(false); // Cerramos el modal
-    router.back(); // Regresamos al mozo a la pantalla de mesas
+    const totalPedido = carrito.reduce((sum, item) => sum + item.precio, 0);
+    
+    // Intentamos enviar el pedido real por WebSockets
+    const enviadoExitosamente = socketService.enviarPedido(mesa, carrito, totalPedido);
+
+    if (enviadoExitosamente) {
+      Alert.alert(
+        'Pedido Enviado', 
+        `La comanda de la Mesa ${mesa} ya está en cocina y caja.`,
+        [{ text: 'OK', onPress: () => {
+          setCarrito([]);
+          setModalVisible(false);
+          router.replace('/home'); // Regresamos al mapa de mesas
+        }}]
+      );
+    } else {
+      Alert.alert(
+        'Error de Conexión', 
+        'No se pudo conectar con la Caja. Verifica que la tablet tenga Wi-Fi y el servidor esté encendido.'
+      );
+    }
   };
 
   const renderCategoria = ({ item }) => (

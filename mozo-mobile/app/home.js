@@ -38,7 +38,13 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Salón Principal</Text>
+      {/* Añadimos esta cabecera */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 10 }}>
+        <Text style={styles.title}>Salón Principal</Text>
+        <TouchableOpacity onPress={() => router.push('/settings')}>
+          <Text style={{ fontSize: 24 }}>⚙️</Text>
+        </TouchableOpacity>
+      </View>
       <FlatList
         data={mesas}
         renderItem={renderMesa}
