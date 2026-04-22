@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { authService } from '../src/services/authService';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const router = useRouter();
 
   const handleLogin = async () => {
     // Validación básica antes de enviar
@@ -19,8 +21,7 @@ export default function LoginScreen() {
       const respuesta = await authService.login(email, password);
       
       if (respuesta.success) {
-        Alert.alert('¡Éxito!', `Bienvenido ${respuesta.user.nombre}. Redirigiendo a mesas...`);
-        // Aquí en el próximo sprint programaremos el salto a la pantalla de Mesas (Home)
+        router.replace('/home');
       }
     } catch (error) {
       // Si falla (contraseña incorrecta), mostramos el error
