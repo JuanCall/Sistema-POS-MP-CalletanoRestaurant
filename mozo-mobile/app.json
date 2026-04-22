@@ -1,23 +1,29 @@
 {
   "expo": {
-    "name": "mozo-mobile",
-    "slug": "mozo-mobile",
+    "name": "Calletano POS",
+    "slug": "calletano-pos-mozo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mozomobile",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#c0392b"
+    },
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "package": "com.calletano.posmozo",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
