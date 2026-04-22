@@ -22,8 +22,8 @@ export default function HomeScreen() {
       <TouchableOpacity 
         style={[styles.mesaCard, isOcupada ? styles.mesaOcupada : styles.mesaLibre]}
         onPress={() => {
-          // Más adelante, esto nos llevará a la pantalla del Menú para tomar el pedido
-          alert(`Abriendo pedido para la Mesa ${item.numero}`);
+          // Navegamos a la pantalla 'menu' y le pasamos el número de mesa como parámetro
+          router.push({ pathname: '/menu', params: { mesa: item.numero } });
         }}
       >
         <Text style={[styles.mesaTexto, isOcupada && styles.textoBlanco]}>
