@@ -1,5 +1,6 @@
 const express = require('express');
 const pool = require('../config/database');
+const { logError } = require('../utils/logger');
 
 const router = express.Router();
 
@@ -32,6 +33,12 @@ router.post('/login', async (req, res) => {
     });
   } catch (error) {
     console.error('Error en login:', error.message);
+
+    logError({
+      message: 'Error en login',
+      error,
+      context: 'authRoutes.login',
+    });
 
     return res.status(500).json({
       message: 'Error interno del servidor',

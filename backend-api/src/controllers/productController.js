@@ -1,4 +1,5 @@
 const pool = require('../config/database');
+const { logError } = require('../utils/logger');
 
 const getCategorias = async (req, res) => {
   try {
@@ -9,6 +10,12 @@ const getCategorias = async (req, res) => {
     return res.status(200).json(result.rows);
   } catch (error) {
     console.error('Error al obtener categorias:', error.message);
+
+    logError({
+      message: 'Error al obtener categorias',
+      error,
+      context: 'productController.getCategorias',
+    });
 
     return res.status(500).json({
       message: 'Error al obtener las categorias',
@@ -36,6 +43,12 @@ const getProductos = async (req, res) => {
     return res.status(200).json(result.rows);
   } catch (error) {
     console.error('Error al obtener productos:', error.message);
+
+    logError({
+      message: 'Error al obtener productos',
+      error,
+      context: 'productController.getProductos',
+    });
 
     return res.status(500).json({
       message: 'Error al obtener los productos',

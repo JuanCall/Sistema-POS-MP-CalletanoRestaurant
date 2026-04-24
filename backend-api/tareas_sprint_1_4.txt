@@ -27,13 +27,13 @@ Dyer: Creación de src/routes/orderRoutes.js. Configurar los endpoints para crea
 
 Semana 3 (Tiempo Real):
 
-👍Dyer: Creación de src/sockets/socketMain.js. Inicializar Socket.io, configurar los eventos de conexión y desconexión.
+Dyer: Creación de src/sockets/socketMain.js. Inicializar Socket.io, configurar los eventos de conexión y desconexión.
 
 Raul: Creación de docs/socket_events.md. Definir el nombre de los eventos (ej: pedido-enviado, actualizar-caja) para que el mozo y la caja hablen el mismo lenguaje.
 
-👍Dyer: Actualización de src/controllers/orderController.js. Integrar Socket.io para que al guardar un pedido exitoso, se emita un broadcast a todos los clientes conectados.
+Dyer: Actualización de src/controllers/orderController.js. Integrar Socket.io para que al guardar un pedido exitoso, se emita un broadcast a todos los clientes conectados.
 
-👍Dyer: Creación de src/sockets/handlers.js. Lógica para manejar reconexiones automáticas si el servidor Socket.io se cae temporalmente.
+Dyer: Creación de src/sockets/handlers.js. Lógica para manejar reconexiones automáticas si el servidor Socket.io se cae temporalmente.
 
 Raul: Creación de docs/error_handling.md. Definir respuestas estándar para cuando el servidor falle o la base de datos esté ocupada.
 

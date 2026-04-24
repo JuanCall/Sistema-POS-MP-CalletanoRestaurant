@@ -1,4 +1,5 @@
 const pool = require('../config/database');
+const { logError } = require('../utils/logger');
 
 const createOrder = async (req, res) => {
   const { id_mesa, id_usuario, estado, detalles } = req.body;
@@ -119,6 +120,12 @@ const createOrder = async (req, res) => {
     await client.query('ROLLBACK');
     console.error('Error al crear pedido:', error.message);
 
+    logError({
+      message: 'Error al crear pedido',
+      error,
+      context: 'orderController.createOrder',
+    });
+
     return res.status(500).json({
       message: 'Error al crear el pedido',
     });
@@ -136,6 +143,12 @@ const getMesas = async (req, res) => {
     return res.status(200).json(result.rows);
   } catch (error) {
     console.error('Error al obtener mesas:', error.message);
+
+    logError({
+      message: 'Error al obtener mesas',
+      error,
+      context: 'orderController.getMesas',
+    });
 
     return res.status(500).json({
       message: 'Error al obtener las mesas',
@@ -161,6 +174,12 @@ const getMesaById = async (req, res) => {
     return res.status(200).json(result.rows[0]);
   } catch (error) {
     console.error('Error al obtener la mesa:', error.message);
+    
+    logError({
+      message: 'Error al obtener la mesa',
+      error,
+      context: 'orderController.getMesaById',
+    });
 
     return res.status(500).json({
       message: 'Error al obtener la mesa',
