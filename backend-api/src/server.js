@@ -1,18 +1,26 @@
 require('dotenv').config({ path: 'DB.env' });
 const express = require('express');
 const cors = require('cors');
+const http = require('http');
+
 const pool = require('./config/database');
 const authRoutes = require('./routes/authRoutes');
 const productRoutes = require('./routes/productRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const initializeSocket = require('./sockets/socketMain');
 
 const app = express();
+const server = http.createServer(app);
+const io = initializeSocket(server);
 const PORT = process.env.PORT || 3000;
+
+app.set('io', io);
 
 app.use(cors());
 app.use(express.json());
-app.use('/api', productRoutes);
+
 app.use('/api/auth', authRoutes);
+app.use('/api', productRoutes);
 app.use('/api', orderRoutes);
 
 app.get('/', (req, res) => {
@@ -24,7 +32,7 @@ async function startServer() {
     await pool.query('SELECT 1');
     console.log('Conexion a PostgreSQL exitosa');
 
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`Servidor corriendo en puerto ${PORT}`);
     });
   } catch (error) {

@@ -101,10 +101,20 @@ const createOrder = async (req, res) => {
 
     await client.query('COMMIT');
 
+    const io = req.app.get('io');
+
+    io.emit('pedido-enviado', {
+      id_pedido: idPedido,
+      id_mesa,
+      id_usuario,
+      estado: estado || 'EN_ATENCION',
+    });
+
     return res.status(201).json({
       message: 'Pedido creado correctamente',
       id_pedido: idPedido,
     });
+
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error al crear pedido:', error.message);
