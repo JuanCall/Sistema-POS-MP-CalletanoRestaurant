@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import CartItem from '../src/components/CartItem';
@@ -52,6 +52,12 @@ export default function MenuScreen() {
 
   const eliminarDelCarrito = (id_temporal) => {
     setCarrito(carrito.filter(item => item.id_temporal !== id_temporal));
+  };
+
+  const actualizarNota = (id_temporal, nuevaNota) => {
+    setCarrito(carrito.map(item => 
+      item.id_temporal === id_temporal ? { ...item, notas: nuevaNota } : item
+    ));
   };
 
   const enviarPedido = () => {
@@ -153,7 +159,11 @@ export default function MenuScreen() {
             <FlatList
               data={carrito}
               renderItem={({ item }) => (
-                <CartItem item={item} onEliminar={eliminarDelCarrito} />
+                <CartItem 
+                  item={item} 
+                  onEliminar={eliminarDelCarrito}
+                  onActualizarNota={actualizarNota} 
+                />
               )}
               keyExtractor={(item) => item.id_temporal.toString()}
               style={styles.modalLista}

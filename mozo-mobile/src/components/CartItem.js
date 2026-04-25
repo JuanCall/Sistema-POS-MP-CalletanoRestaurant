@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 
-export default function CartItem({ item, onEliminar }) {
-  const [nota, setNota] = useState('');
-
+// Recibimos onActualizarNota
+export default function CartItem({ item, onEliminar, onActualizarNota }) { 
   return (
     <View style={styles.container}>
       <View style={styles.filaPrincipal}>
@@ -15,8 +14,8 @@ export default function CartItem({ item, onEliminar }) {
         <TextInput 
           style={styles.inputNota}
           placeholder="Añadir nota (ej: sin ají)..."
-          value={nota}
-          onChangeText={setNota}
+          value={item.notas || ''} // Leemos la nota directamente del item
+          onChangeText={(texto) => onActualizarNota(item.id_temporal, texto)} // Guardamos en el padre
         />
         <TouchableOpacity style={styles.btnEliminar} onPress={() => onEliminar(item.id_temporal)}>
           <Text style={styles.btnEliminarTexto}>X</Text>
