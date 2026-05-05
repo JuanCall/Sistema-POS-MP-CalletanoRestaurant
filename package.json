@@ -1,0 +1,45 @@
+{
+  "name": "calletano-pos-desktop",
+  "version": "1.0.0",
+  "description": "Sistema de Caja Local",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "concurrently \"cd caja-app && npm run dev\" \"electron .\"",
+    "build:react": "cd caja-app && npm run build",
+    "pack": "npm run build:react && electron-builder --win"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.1.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "firebase-admin": "^13.8.0",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "electron": "^31.2.0",
+    "electron-builder": "^26.8.1",
+    "electron-rebuild": "^3.2.9",
+    "nodemon": "^3.1.4"
+  },
+  "build": {
+    "appId": "com.calletano.pos",
+    "productName": "Calletano POS",
+    "directories": {
+      "output": "instalador"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "files": [
+      "server.js",
+      "database.js",
+      "main.js",
+      "serviceAccountKey.json",
+      "caja-app/dist/**/*",
+      "node_modules/**/*"
+    ]
+  }
+}
