@@ -1,4 +1,19 @@
+# Credenciales y Seguridad (¡CRÍTICO!)
 serviceAccountKey.json
+.env
+
+# Base de datos local SQLite (Evita subir ventas locales a GitHub)
+*.db
+*.sqlite
+*.sqlite3
+
+# Dependencias
 node_modules/
+
+# Carpetas de compilación de React y ejecutables de Electron
 dist/
 instalador/
+
+# Archivos del sistema (Mac/Windows)
+.DS_Store
+Thumbs.db
