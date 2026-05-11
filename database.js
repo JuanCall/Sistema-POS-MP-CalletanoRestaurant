@@ -67,9 +67,9 @@ const initDB = () => {
     if (countUsers.c === 0) {
         const insertUser = db.prepare("INSERT INTO usuarios (username, password, rol) VALUES (?, ?, ?)");
         // Creamos el admin por defecto
-        insertUser.run('admin', '1234', 'admin');
+        insertUser.run('calletano', '44910626', 'admin');
         // Crear un cajero para probar los roles
-        insertUser.run('cajera', 'caja2026', 'cajero');
+        insertUser.run('caja', 'caja', 'cajero');
     }
 };
 

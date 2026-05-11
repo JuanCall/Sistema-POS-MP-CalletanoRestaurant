@@ -1,13 +1,13 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-
+// Forzar a Electron a permitir audios sin interacción previa del usuario
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 let mainWindow;
 
 // Detectar si estamos en producción (empaquetado) o en desarrollo
 const isDev = !app.isPackaged;
 
-// MÁGIA DEFINITIVA: Electron SIEMPRE arranca el backend.
-// Esto evita el error NODE_MODULE_VERSION porque usamos su motor interno de Node.
+// Electron SIEMPRE arranca el backend.
 require('./server.js');
 
 function createWindow() {
@@ -19,7 +19,8 @@ function createWindow() {
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false, // Requerido para que React pueda llamar a ipcRenderer
-            autoplayPolicy: 'no-user-gesture-required'
+            autoplayPolicy: 'no-user-gesture-required',
+            webSecurity: false
         }
     });
 
@@ -42,20 +43,27 @@ function createWindow() {
 // ==========================================================
 // MOTOR DE IMPRESIÓN INVISIBLE (HARDWARE INTEGRATION)
 // ==========================================================
-ipcMain.on('imprimir-ticket', (event, contenidoHtml) => {
-    // Creamos una ventana invisible solo para imprimir
-    let winPrint = new BrowserWindow({ show: false }); 
+ipcMain.on('imprimir-ticket', (event, data) => {
+  // Extraemos los datos (soportando el formato nuevo y el viejo por si acaso)
+  let htmlContent = typeof data === 'string' ? data : data.html;
+  let targetPrinter = typeof data === 'string' ? '' : data.printerName;
+
+  let printWindow = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true } });
+  printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+  
+  printWindow.webContents.on('did-finish-load', () => {
+    const printOptions = { silent: true };
     
-    // Cargamos el diseño del ticket que nos mandó React
-    winPrint.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(contenidoHtml)}`);
-    
-    winPrint.webContents.on('did-finish-load', () => {
-        // 'silent: true' hace que imprima directo a la impresora predeterminada sin preguntar
-        winPrint.webContents.print({ silent: true, printBackground: true }, (success, failureReason) => {
-            if (!success) console.log("Error al imprimir:", failureReason);
-            winPrint.close(); // Cerramos la ventana invisible al terminar
-        });
+    // Si el frontend especificó una impresora (y no está en blanco), la usamos
+    if (targetPrinter && targetPrinter.trim() !== '') {
+      printOptions.deviceName = targetPrinter;
+    }
+
+    printWindow.webContents.print(printOptions, (success, failureReason) => {
+      if (!success) console.error('Error al imprimir:', failureReason);
+      printWindow.close();
     });
+  });
 });
 
 // Iniciar Electron

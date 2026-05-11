@@ -20,6 +20,9 @@ export default function App() {
   const [loginData, setLoginData]                 = useState({ username: '', password: '' })
   const [loginError, setLoginError]               = useState('')
   const [filtroCarta, setFiltroCarta]             = useState('')
+  
+  // 🟢 Estado Global del Modo Domingo controlado por Firebase (a través del Servidor)
+  const [modoDomingo, setModoDomingo]             = useState(false) 
 
   const audioRef = useRef(null)
 
@@ -47,9 +50,17 @@ export default function App() {
   const [pagos, setPagos]             = useState({ efectivo: 0, yape: 0, plin: 0, tarjeta: 0 });
   const [montoRecibido, setMontoRecibido] = useState('');
 
+  const [confirmModal, setConfirmModal] = useState({ visible: false, title: '', message: '', onConfirm: null });
+  const [alertModal, setAlertModal] = useState({ visible: false, title: '', message: '', type: 'success' });
+  const mostrarAlert = (title, message, type = 'success') => setAlertModal({ visible: true, title, message, type });
+
   const obtenerFechaActualLocal = () => {
     const tzOffset = new Date().getTimezoneOffset() * 60000;
     return new Date(Date.now() - tzOffset).toISOString().split('T')[0];
+  };
+
+  const solicitarConfirmacion = (title, message, action) => {
+    setConfirmModal({ visible: true, title, message, onConfirm: action });
   };
 
   const [fechaArqueo, setFechaArqueo]     = useState(obtenerFechaActualLocal());
@@ -61,12 +72,22 @@ export default function App() {
   const [mesDashboard, setMesDashboard]   = useState(obtenerFechaActualLocal().slice(0, 7));
   const [dashboardData, setDashboardData] = useState(null);
 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const accionMenu = (accion) => {
+    accion();
+    if (window.innerWidth <= 1400) setSidebarOpen(false);
+  };
+
   const cargarMesas = async () => { try { const res = await axios.get('http://localhost:3001/api/mesas'); setMesas(res.data); } catch (e) {} }
   const cargarCarta = async () => { try { const res = await axios.get('http://localhost:3001/api/carta'); setCarta(res.data); } catch (e) {} }
 
   const inicializarSistema = async () => {
     setServerStatus('Sincronizando...');
-    try { await axios.get('http://localhost:3001/api/init-sync'); setServerStatus('En línea 🟢'); } catch (e) { setServerStatus('Desconectado 🔴'); }
+    try { 
+        const resSync = await axios.get('http://localhost:3001/api/init-sync'); 
+        setModoDomingo(resSync.data.modoDomingo); // 🟢 Leemos el estado validado por el servidor
+        setServerStatus('En línea 🟢'); 
+    } catch (e) { setServerStatus('Desconectado 🔴'); }
     cargarMesas(); cargarCarta();
   }
 
@@ -103,18 +124,13 @@ export default function App() {
     }
   }, [usuarioActivo])
 
-  const esDomingo = new Date().getDay() === 0;
-
-  // Lógica de formateo MESA 1
   const formatMesaName = (id) => {
     if (!id) return '';
-    // Convertimos a texto y limpiamos el ".0" si la base de datos lo envía como decimal
     let idStr = String(id).replace('.0', '');
     if (idStr.startsWith('DEL-')) return idStr;
     return `MESA ${idStr.replace('mesa_', '')}`;
   };
 
-  // Lógica de ordenamiento numérico
   const mesasOrdenadas = [...mesas].sort((a, b) => {
     const numA = parseInt(String(a.id).replace(/\D/g, ''));
     const numB = parseInt(String(b.id).replace(/\D/g, ''));
@@ -143,15 +159,15 @@ export default function App() {
     const idx = nuevo.findIndex(i => i.nombre === plato.nombre && i.modalidad === mod && !i.impreso && !i.nota && !i.cliente);
     if (idx > -1) nuevo[idx].cantidad += 1;
     else nuevo.push({ nombre: plato.nombre, precio: plato.precio, cantidad: 1, categoria: categoriaNombre, modalidad: mod, impreso: false });
+    
     actualizarPedidoMesa(mesaSeleccionada, nuevo);
-    modalInstance?.hide();
   };
 
   const mesaActiva = mesas.find(m => m.id === mesaSeleccionada);
 
   const actualizarPedidoMesa = async (mesaId, nuevoPedido) => {
     try { await axios.put(`http://localhost:3001/api/mesas/${mesaId}/pedido`, { pedido: nuevoPedido }); }
-    catch (e) { alert("Error al actualizar pedido"); }
+    catch (e) { mostrarAlert("Error", "Error al actualizar pedido", "danger"); }
   }
 
   const modificarCantidad = (idx, cambio) => {
@@ -166,13 +182,13 @@ export default function App() {
   };
 
   const enviarACocina = () => {
-    if (!mesaActiva || mesaActiva.pedido.length === 0) return alert("El pedido está vacío.");
+    if (!mesaActiva || mesaActiva.pedido.length === 0) return mostrarAlert("Aviso", "El pedido está vacío.", "danger");
     const itemsNuevos = mesaActiva.pedido.filter(i => !i.impreso);
-    if (itemsNuevos.length === 0) return alert("No hay platos nuevos para enviar a cocina.");
+    if (itemsNuevos.length === 0) return mostrarAlert("Aviso", "No hay platos nuevos para enviar a cocina.", "danger");
     procesarImpresionCocina(mesaSeleccionada, itemsNuevos);
     const pedidoActualizado = mesaActiva.pedido.map(i => ({...i, impreso: true}));
     actualizarPedidoMesa(mesaSeleccionada, pedidoActualizado);
-    alert("🍳 Comandas enviadas a COCINA");
+    mostrarAlert("Éxito", "Comandas enviadas a COCINA", "success");
   };
   
   const cambiarModalidad = (idx) => {
@@ -204,10 +220,12 @@ export default function App() {
   };
 
   const eliminarDelPedido = (idx) => {
-    if (!window.confirm('¿Eliminar plato permanentemente?')) return;
-    let nuevo = [...mesaActiva.pedido];
-    nuevo.splice(idx, 1);
-    actualizarPedidoMesa(mesaSeleccionada, nuevo);
+    solicitarConfirmacion('Eliminar Plato', '¿Eliminar plato permanentemente?', () => {
+      let nuevo = [...mesaActiva.pedido];
+      nuevo.splice(idx, 1);
+      actualizarPedidoMesa(mesaSeleccionada, nuevo);
+      setConfirmModal(prev => ({ ...prev, visible: false }));
+    });
   };
 
   const crearMesaDelivery = async (e) => {
@@ -219,51 +237,144 @@ export default function App() {
         setModalVirtualDelivery(false);
         setDatosVirtualDelivery({ nombre: '', direccion: '', telefono: '' });
         setMesaSeleccionada(idMesa);
-    } catch(e) { alert("Error al crear mesa de delivery"); }
+    } catch(e) { mostrarAlert("Error", "Error al crear mesa de delivery", "danger"); }
   };
 
   const generarTicketHTML = (mesa, pedido, total, pagos, recibido, vuelto, esPrecuenta = false) => {
     const fecha = new Date().toLocaleString(); let itemsHTML = '';
     const tituloPrincipal = esPrecuenta ? "PRE-CUENTA" : "CALLETANO";
-    const subTitulo = esPrecuenta ? "Documento no válido como comprobante" : "RESTAURANT";
+    const subTitulo = esPrecuenta ? "CALLETANO - RESTAURANT" : "RESTAURANT";
     const nombreMesaLimpio = formatMesaName(mesa);
     pedido.forEach(item => { itemsHTML += `<tr><td style="padding:3px 0;border-bottom:1px dashed #ccc;">${item.cantidad}</td><td style="padding:3px 0;border-bottom:1px dashed #ccc;">${item.nombre} ${item.modalidad !== 'local' ? `<br><small style="font-size:10px">*[${item.modalidad.toUpperCase()}]</small>` : ''}</td><td style="padding:3px 0;border-bottom:1px dashed #ccc;text-align:right;">S/ ${item.subtotal.toFixed(2)}</td></tr>`; });
-    return `<html><head><style>@page{margin:0;}body{font-family:'Courier New',Courier,monospace;width:300px;margin:0 auto;padding:15px;font-size:12px;color:#000;}.centrado{text-align:center;}.negrita{font-weight:bold;}.linea{border-top:2px dashed #000;margin:10px 0;}table{width:100%;border-collapse:collapse;margin-bottom:10px;}</style></head><body><div class="centrado"><h2 style="margin:0">${tituloPrincipal}</h2><h4 style="margin:0;font-weight:normal">${subTitulo}</h4><p style="margin:5px 0">RUC: 10452345678<br>Av. Piura 123, Máncora</p></div><div class="linea"></div><p><span class="negrita">Fecha:</span> ${fecha}<br><span class="negrita">Ref:</span> ${nombreMesaLimpio}<br><span class="negrita">Cajero:</span> ${usuarioActivo.username}</p><div class="linea"></div><table><thead><tr><th style="text-align:left;border-bottom:1px solid #000;">Cant</th><th style="text-align:left;border-bottom:1px solid #000;">Desc</th><th style="text-align:right;border-bottom:1px solid #000;">Imp</th></tr></thead><tbody>${itemsHTML}</tbody></table><div style="text-align:right;font-size:16px;" class="negrita">TOTAL: S/ ${total.toFixed(2)}</div><div class="linea"></div>${!esPrecuenta ? `<div style="font-size:10px;">Efectivo Recibido: S/ ${recibido.toFixed(2)}<br>Vuelto: S/ ${vuelto.toFixed(2)}</div><div class="linea"></div><div class="centrado"><p>¡Gracias por su preferencia!</p></div>` : '<div class="centrado"><p>Por favor revise su pedido.<br>Acerquese a caja para pagar.</p></div>'}</body></html>`;
-  };
+    return `<html><head><style>@page{margin:0;}body{font-family:'Courier New',Courier,monospace;width:265px;margin:0;padding:5px 10px 5px 0px;font-size:12px;color:#000;}.negrita{font-weight:bold;}.linea{border-top:2px dashed #000;margin:10px 0;}table{width:100%;border-collapse:collapse;margin-bottom:10px;}</style></head><body><div class="centrado"><h2 style="margin:0">${tituloPrincipal}</h2><h4 style="margin:0;font-weight:normal">${subTitulo}</h4></div><div class="linea"></div><p><span class="negrita">Fecha:</span> ${fecha}<br><span class="negrita">Ref:</span> ${nombreMesaLimpio}<br><span class="negrita">Cajero:</span> ${usuarioActivo.username}</p><div class="linea"></div><table><thead><tr><th style="text-align:left;border-bottom:1px solid #000;">Cant</th><th style="text-align:left;border-bottom:1px solid #000;">Desc</th><th style="text-align:right;border-bottom:1px solid #000;">Imp</th></tr></thead><tbody>${itemsHTML}</tbody></table><div style="text-align:right;font-size:16px;" class="negrita">TOTAL: S/ ${total.toFixed(2)}</div><div class="linea"></div>${!esPrecuenta ? `
+      <div style="font-size:11px; margin-top:5px;">
+        <span class="negrita">Métodos de Pago:</span><br>
+        ${pagos.efectivo > 0 ? `EFECTIVO: S/ ${pagos.efectivo.toFixed(2)}<br>` : ''}
+        ${pagos.yape > 0 ? `YAPE: S/ ${pagos.yape.toFixed(2)}<br>` : ''}
+        ${pagos.plin > 0 ? `PLIN: S/ ${pagos.plin.toFixed(2)}<br>` : ''}
+        ${pagos.tarjeta > 0 ? `TARJETA: S/ ${pagos.tarjeta.toFixed(2)}<br>` : ''}
+        <div class="linea" style="margin: 5px 0;"></div>
+        ${recibido > 0 ? `Efectivo Entregado: S/ ${recibido.toFixed(2)}<br>Vuelto: S/ ${vuelto.toFixed(2)}` : ''}
+      </div>
+      <div class="linea"></div>
+      <div class="centrado"><p>¡Gracias por su preferencia!</p></div>` 
+    : '<div class="centrado"><p>Por favor revise su pedido.<br>Documento no válido como comprobante.</p></div>'}</body></html>`;
+      };
 
   const generarTicketCocina = (mesaId, items, tipoComanda) => {
     let itemsHTML = '';
     const nombreMesaLimpio = formatMesaName(mesaId);
+    
     items.forEach(item => { 
-      let mod = item.modalidad !== 'local' ? `<br><small style="font-size:12px">*[${item.modalidad.toUpperCase()}]*</small>` : '';
-      let cliente = item.cliente ? `<br><small style="font-size:12px; color:#dc3545;">Envíar a: ${item.cliente.nombre}</small>` : '';
-      itemsHTML += `<tr><td style="padding:8px 0;border-bottom:1px dashed #000;font-size:18px;font-weight:bold;vertical-align:top;">${item.cantidad}</td><td style="padding:8px 0;border-bottom:1px dashed #000;font-size:16px;">${item.nombre}${mod}${cliente}</td></tr>`; 
+      let mod = item.modalidad !== 'local' ? `<br><small style="font-size:12px; font-weight:bold;">*[${item.modalidad.toUpperCase()}]*</small>` : '';
+      let cliente = item.cliente 
+        ? `<br><small style="font-size:13px; font-weight:bold;">Enviar a: ${item.cliente.nombre} - ${item.cliente.direccion}</small>` 
+        : '';
+        
+      let nota = item.nota 
+        ? `<br><span style="font-size:14px; font-weight:bold;">&nbsp;&nbsp;>> NOTA: ${item.nota.toUpperCase()}</span>` 
+        : '';
+
+      itemsHTML += `
+        <tr>
+          <td style="padding:8px 0; border-bottom:1px dashed #000; font-size:18px; font-weight:bold; vertical-align:top;">${item.cantidad}</td>
+          <td style="padding:8px 0; border-bottom:1px dashed #000; font-size:16px;">
+            <span style="font-weight:bold;">${item.nombre}</span>${mod}${cliente}${nota}
+          </td>
+        </tr>`; 
     });
-    return `<html><head><style>@page{margin:0;}body{font-family:'Courier New',Courier,monospace;width:300px;margin:0 auto;padding:15px;color:#000;}.centrado{text-align:center;}.linea{border-top:2px dashed #000;margin:10px 0;}table{width:100%;border-collapse:collapse;margin-bottom:10px;}</style></head><body><div class="centrado"><h2 style="margin:0">COCINA</h2><h3 style="margin:5px 0;background:#000;color:#fff;padding:5px;display:inline-block;">${tipoComanda}</h3></div><div class="linea"></div><p style="font-size:16px;margin:5px 0"><span style="font-weight:bold">Ref:</span> ${nombreMesaLimpio}<br><span style="font-weight:bold">Hora:</span> ${new Date().toLocaleTimeString()}</p><div class="linea"></div><table><thead><tr><th style="text-align:left;border-bottom:2px solid #000;font-size:14px;">Cant</th><th style="text-align:left;border-bottom:2px solid #000;font-size:14px;">Plato</th></tr></thead><tbody>${itemsHTML}</tbody></table><div class="linea"></div><div class="centrado"><p>-- FIN COMANDA --</p></div></body></html>`;
+
+    return `
+      <html>
+        <head>
+          <style>
+            @page { margin: 0; }
+            body { 
+              font-family: 'Courier New', Courier, monospace; 
+              width: 265px; 
+              margin: 0; 
+              padding: 5px 10px 0px 0px;
+              color: #000; 
+            }
+            .centrado { text-align: center; }
+            .linea { border-top: 2px dashed #000; margin: 8px 0; }
+            table { width: 100%; border-collapse: collapse; }
+          </style>
+        </head>
+        <body>
+          <div class="centrado">
+            <h2 style="margin:0; font-weight:bold;">COCINA</h2>
+            <h3 style="margin:5px 0; background:#000; color:#fff; padding:5px; display:inline-block; font-weight:bold; font-size:18px;">
+              ${tipoComanda.toUpperCase()}
+            </h3>
+          </div>
+          <div class="linea"></div>
+          <p style="font-size:16px; margin:5px 0">
+            <span style="font-weight:bold">Ref:</span> ${nombreMesaLimpio}<br>
+            <span style="font-weight:bold">Hora:</span> ${new Date().toLocaleTimeString()}
+          </p>
+          <div class="linea"></div>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:left; border-bottom:2px solid #000; font-size:14px; font-weight:bold;">Cant</th>
+                <th style="text-align:left; border-bottom:2px solid #000; font-size:14px; font-weight:bold;">Plato</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHTML}
+            </tbody>
+          </table>
+          </body>
+      </html>`;
   };
 
   const procesarImpresionCocina = (mesaId, itemsAImprimir) => {
       if (!itemsAImprimir || itemsAImprimir.length === 0) return;
-      const itemsLocal = itemsAImprimir.filter(i => i.modalidad === 'local' || i.modalidad === 'llevar');
-      const itemsDelivery = itemsAImprimir.filter(i => i.modalidad === 'delivery' || i.modalidad === 'delivery_centro');
+
+      const categoriasBebidas = ['JUGOS NATURALES', 'BEBIDAS HELADAS', 'BEBIDAS CALIENTES', 'CERVEZA'];
+      
+      const soloPlatos = itemsAImprimir.filter(it => {
+          const cat = it.categoria ? it.categoria.toUpperCase().trim() : '';
+          const nom = it.nombre ? it.nombre.toUpperCase() : '';
+          return !categoriasBebidas.includes(cat) && !nom.includes('REFRESCO');
+      });
+
+      if (soloPlatos.length === 0) return;
+
+      const itemsLocal = soloPlatos.filter(i => i.modalidad === 'local' || i.modalidad === 'llevar');
+      const itemsDelivery = soloPlatos.filter(i => i.modalidad === 'delivery' || i.modalidad === 'delivery_centro');
+
       if (itemsLocal.length > 0) {
           const ticketLocal = generarTicketCocina(mesaId, itemsLocal, "SALÓN / LLEVAR");
-          if (window.require) window.require('electron').ipcRenderer.send('imprimir-ticket', ticketLocal);
-          else { const win = window.open('', '_blank'); win.document.write(ticketLocal); win.print(); }
+          enviarAImpresora(ticketLocal, 'cocina');
       }
       if (itemsDelivery.length > 0) {
           setTimeout(() => {
               const ticketDelivery = generarTicketCocina(mesaId, itemsDelivery, "DELIVERY");
-              if (window.require) window.require('electron').ipcRenderer.send('imprimir-ticket', ticketDelivery);
-              else { const win = window.open('', '_blank'); win.document.write(ticketDelivery); win.print(); }
+              enviarAImpresora(ticketDelivery, 'cocina');
           }, itemsLocal.length > 0 ? 1500 : 0);
       }
   };
 
+  const enviarAImpresora = async (html, tipoDestino) => {
+    if (!window.require) {
+      const win = window.open('', '_blank'); win.document.write(html); win.print();
+      return;
+    }
+    try {
+      const res = await axios.get('http://localhost:3001/api/config');
+      const targetPrinter = tipoDestino === 'cocina' ? res.data.ticketera_cocina : res.data.ticketera_caja;
+      window.require('electron').ipcRenderer.send('imprimir-ticket', { html: html, printerName: targetPrinter });
+    } catch (e) {
+      console.error("Error obteniendo configuración de impresora");
+    }
+  };
+
   const imprimirPreCuenta = () => {
-    if (!mesaActiva || mesaActiva.pedido.length === 0) return alert("El pedido está vacío.");
+    if (!mesaActiva || mesaActiva.pedido.length === 0) return mostrarAlert("Aviso", "El pedido está vacío.", "danger");
     const ticketHTML = generarTicketHTML(mesaSeleccionada, mesaActiva.pedido, mesaActiva.total, {efectivo: 0, yape: 0, plin: 0, tarjeta: 0}, 0, 0, true);
-    if (window.require) window.require('electron').ipcRenderer.send('imprimir-ticket', ticketHTML);
+    if (window.require) enviarAImpresora(ticketHTML, 'caja');
     else { const win = window.open('', '_blank'); win.document.write(ticketHTML); win.print(); }
   };
 
@@ -279,7 +390,7 @@ export default function App() {
     const sumaPagosDigitales = parseFloat(pagos.yape || 0) + parseFloat(pagos.plin || 0) + parseFloat(pagos.tarjeta || 0);
     const efectivoDigitado   = parseFloat(montoRecibido || 0);
     const sumaTotalRecibida  = sumaPagosDigitales + efectivoDigitado;
-    if (sumaTotalRecibida < mesaActiva.total) return alert("Monto insuficiente.");
+    if (sumaTotalRecibida < mesaActiva.total) return mostrarAlert("Aviso", "Monto insuficiente.", "danger");
     const vuelto       = sumaTotalRecibida > mesaActiva.total ? sumaTotalRecibida - mesaActiva.total : 0;
     const efectivoReal = efectivoDigitado - vuelto;
     const pagosFinales = { ...pagos, efectivo: efectivoReal > 0 ? efectivoReal : 0 };
@@ -288,26 +399,58 @@ export default function App() {
       const mesaNumeroLimpio = String(mesaSeleccionada).startsWith('mesa_') ? parseInt(String(mesaSeleccionada).replace('mesa_', ''), 10) : mesaSeleccionada;
       await axios.post('http://localhost:3001/api/cobrar', { mesaId: mesaSeleccionada, mesaNum: mesaNumeroLimpio, totalCobrado: mesaActiva.total, metodosPago: pagosFinales, items: mesaActiva.pedido });
       
-      const ticketHTML = generarTicketHTML(mesaSeleccionada, mesaActiva.pedido, mesaActiva.total, pagosFinales, efectivoDigitado, vuelto, false);
-      if (window.require) window.require('electron').ipcRenderer.send('imprimir-ticket', ticketHTML);
-      else { const win = window.open('', '_blank'); win.document.write(ticketHTML); win.print(); }
+      modalCobroInstance?.hide(); 
+      setPagos({ efectivo: 0, yape: 0, plin: 0, tarjeta: 0 }); 
+      setMontoRecibido('');
       
-      modalCobroInstance?.hide(); setPagos({ efectivo: 0, yape: 0, plin: 0, tarjeta: 0 }); setMontoRecibido('');
-      alert("Venta guardada y comprobante en impresión.");
-    } catch (e) { alert("Error al cobrar."); }
+      solicitarConfirmacion(
+        'Venta Registrada',
+        '¿Desea imprimir el comprobante de pago para el cliente?',
+        () => {
+           const ticketHTML = generarTicketHTML(mesaSeleccionada, mesaActiva.pedido, mesaActiva.total, pagosFinales, efectivoDigitado, vuelto, false);
+           enviarAImpresora(ticketHTML, 'caja');
+           setConfirmModal(prev => ({ ...prev, visible: false }));
+           mostrarAlert('Completado', 'El ticket se ha enviado a la impresora.', 'success');
+        }
+      );
+    } catch (e) { mostrarAlert('Error', 'No se pudo procesar el cobro', 'danger'); }
   }
 
   const cargarListaGastos = async (fecha) => { try { const res = await axios.get(`http://localhost:3001/api/gastos?fecha=${fecha}`); setGastosHoy(res.data); } catch (e) {} };
   const abrirGastos   = () => { const hoy = obtenerFechaActualLocal(); cargarListaGastos(hoy); modalGastosInstance?.show(); };
-  const guardarGasto  = async (e) => { e.preventDefault(); try { await axios.post('http://localhost:3001/api/gastos', nuevoGasto); setNuevoGasto({ descripcion: '', monto: '', categoria: 'Insumos' }); cargarListaGastos(obtenerFechaActualLocal()); } catch (e) { alert("Error."); } };
-  const eliminarGasto = async (id) => { if (window.confirm('¿Anular gasto?')) { try { await axios.delete(`http://localhost:3001/api/gastos/${id}`); cargarListaGastos(obtenerFechaActualLocal()); } catch (e) {} } };
+  const guardarGasto  = async (e) => { e.preventDefault(); try { await axios.post('http://localhost:3001/api/gastos', nuevoGasto); setNuevoGasto({ descripcion: '', monto: '', categoria: 'Insumos' }); cargarListaGastos(obtenerFechaActualLocal()); } catch (e) { mostrarAlert("Error", "Error al guardar el gasto", "danger"); } };
+  const eliminarGasto = (id) => {
+    solicitarConfirmacion(
+      'Anular Gasto',
+      '¿Estás seguro de que deseas eliminar este registro de gasto permanentemente?',
+      async () => {
+        try { 
+          await axios.delete(`http://localhost:3001/api/gastos/${id}`); 
+          cargarListaGastos(obtenerFechaActualLocal()); 
+          setConfirmModal(prev => ({ ...prev, visible: false }));
+        } catch (e) {}
+      }
+    );
+  };
 
   const abrirReporte  = async () => { const hoy = obtenerFechaActualLocal(); setFechaArqueo(hoy); await cargarArqueo(hoy); modalReporteInstance?.show(); };
   const cargarArqueo  = async (fecha) => { try { const res = await axios.get(`http://localhost:3001/api/reporte-diario?fecha=${fecha}`); setReporte(res.data); } catch (e) {} };
 
   const abrirHistorial  = async () => { const hoy = obtenerFechaActualLocal(); setFechaHistorial(hoy); await cargarHistorial(hoy); modalHistorialInstance?.show(); };
   const cargarHistorial = async (fecha) => { try { const res = await axios.get(`http://localhost:3001/api/ventas?fecha=${fecha}`); setHistorialVentas(res.data); } catch (e) {} };
-  const anularVenta     = async (idVenta) => { if (!window.confirm(`⚠️ ¿ANULAR Ticket #${idVenta}? Se descontará del Arqueo.`)) return; try { await axios.delete(`http://localhost:3001/api/ventas/${idVenta}`); await cargarHistorial(fechaHistorial); } catch (e) { alert("Error"); } };
+  const anularVenta = (idVenta) => {
+    solicitarConfirmacion(
+      'Anular Venta',
+      `⚠️ ¿ANULAR Ticket #${idVenta}? Esta acción descontará el monto del Arqueo de hoy.`,
+      async () => {
+        try { 
+          await axios.delete(`http://localhost:3001/api/ventas/${idVenta}`); 
+          await cargarHistorial(fechaHistorial); 
+          setConfirmModal(prev => ({ ...prev, visible: false }));
+        } catch (e) { mostrarAlert("Error", "Error al anular la venta", "danger"); }
+      }
+    );
+  };
 
   const abrirDashboard  = async () => { const mesActual = obtenerFechaActualLocal().slice(0, 7); setMesDashboard(mesActual); await cargarDashboard(mesActual); modalDashboardInstance?.show(); };
   const cargarDashboard = async (mes) => { try { const res = await axios.get(`http://localhost:3001/api/dashboard?mes=${mes}`); setDashboardData(res.data); } catch (e) {} };
@@ -326,21 +469,26 @@ export default function App() {
   };
 
   const abrirConfiguracion = async () => {
-    setModalConfig(true);
-    try {
-      const resPrinters = await axios.get('http://localhost:3001/api/impresoras');
-      setImpresorasUSB(resPrinters.data);
-      const resConfig = await axios.get('http://localhost:3001/api/config');
-      if (resConfig.data.ticketera_caja) setTicketeraCaja(resConfig.data.ticketera_caja);
-      if (resConfig.data.ticketera_cocina) setTicketeraCocina(resConfig.data.ticketera_cocina);
-    } catch (e) { console.error(e); }
+      setModalConfig(true);
+      try {
+        const resPrinters = await axios.get('http://localhost:3001/api/impresoras');
+        setImpresorasUSB(resPrinters.data);
+        const resConfig = await axios.get('http://localhost:3001/api/config');
+        if (resConfig.data.ticketera_caja) setTicketeraCaja(resConfig.data.ticketera_caja);
+        if (resConfig.data.ticketera_cocina) setTicketeraCocina(resConfig.data.ticketera_cocina);
+      } catch (e) { console.error(e); }
   };
+  
   const guardarConfiguracion = async () => {
-    try {
-      await axios.post('http://localhost:3001/api/config', { ticketera_caja: ticketeraCaja, ticketera_cocina: ticketeraCocina });
-      alert('✅ Ticketeras configuradas correctamente');
-      setModalConfig(false);
-    } catch (e) { alert('Error al guardar configuración'); }
+      try {
+        await axios.post('http://localhost:3001/api/config', { 
+            ticketera_caja: ticketeraCaja, 
+            ticketera_cocina: ticketeraCocina
+        });
+        socket.emit('actualizar_mesas'); 
+        mostrarAlert('Éxito', 'Configuración actualizada', 'success');
+        setModalConfig(false);
+      } catch (e) { mostrarAlert('Error', 'No se pudo guardar', 'danger'); }
   };
 
   // ─── PANTALLA DE LOGIN (Estilo ERP) ───
@@ -376,10 +524,11 @@ export default function App() {
   // ─── PANTALLA PRINCIPAL ERP ───
   return (
     <div className="erp-layout">
-      <audio ref={audioRef} src="/new-order.mp3" preload="auto" />
+      <audio ref={audioRef} src="./new-order.mp3" preload="auto" />
 
-      {/* SIDEBAR CORPORATIVO */}
-      <aside className="erp-sidebar">
+      <div className={`erp-sidebar-overlay ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)}></div>
+
+      <aside className={`erp-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="erp-sidebar-header">
           <div className="erp-brand"><i className="fas fa-layer-group"></i> Calletano</div>
           <div className="erp-status-badge">
@@ -388,43 +537,46 @@ export default function App() {
         </div>
 
         <nav className="erp-nav">
-          <button className="erp-nav-item active"><i className="fas fa-store"></i> Punto de Venta</button>
+          <button className="erp-nav-item active" onClick={() => accionMenu(() => {})}><i className="fas fa-store"></i> Punto de Venta</button>
           {usuarioActivo.rol === 'admin' && (
             <>
-              <button className="erp-nav-item" onClick={abrirReporte}><i className="fas fa-cash-register"></i> Arqueo de Caja</button>
-              <button className="erp-nav-item" onClick={abrirHistorial}><i className="fas fa-history"></i> Libro de Ventas</button>
-              <button className="erp-nav-item" onClick={abrirGastos}><i className="fas fa-file-invoice-dollar"></i> Control de Gastos</button>
-              <button className="erp-nav-item" onClick={abrirDashboard}><i className="fas fa-chart-pie"></i> Analítica Integral</button>
+              <button className="erp-nav-item" onClick={() => accionMenu(abrirReporte)}><i className="fas fa-cash-register"></i> Arqueo de Caja</button>
+              <button className="erp-nav-item" onClick={() => accionMenu(abrirHistorial)}><i className="fas fa-history"></i> Libro de Ventas</button>
+              <button className="erp-nav-item" onClick={() => accionMenu(abrirGastos)}><i className="fas fa-file-invoice-dollar"></i> Control de Gastos</button>
+              <button className="erp-nav-item" onClick={() => accionMenu(abrirDashboard)}><i className="fas fa-chart-pie"></i> Analítica Integral</button>
               <div style={{borderTop: '1px solid rgba(255,255,255,0.1)', margin: '10px 0'}}></div>
-              <button className="erp-nav-item" onClick={abrirConfiguracion}><i className="fas fa-print"></i> Setup Hardware</button>
-              <button className="erp-nav-item" onClick={inicializarSistema}><i className="fas fa-sync-alt"></i> Forzar Sync</button>
+              <button className="erp-nav-item" onClick={() => accionMenu(abrirConfiguracion)}><i className="fas fa-print"></i> Setup Hardware</button>
+              <button className="erp-nav-item" onClick={() => accionMenu(inicializarSistema)}><i className="fas fa-sync-alt"></i> Forzar Sync</button>
             </>
           )}
         </nav>
 
         <div className="erp-user-footer">
-          <div className="erp-user-info"><i className="fas fa-user-circle" style={{color: '#D4A843'}}></i> {usuarioActivo.username}</div>
-          <button className="erp-logout-btn" onClick={() => setUsuarioActivo(null)} title="Cerrar Sesión"><i className="fas fa-sign-out-alt"></i></button>
+          <div className="erp-user-info"><i className="fas fa-user-circle" style={{color: '#D4A843'}}></i> {usuarioActivo.username.toUpperCase()}</div>
+          <button className="erp-logout-btn" onClick={() => setUsuarioActivo(null)} title="Cerrar Sesión">Salir</button>
+
+          <button className="erp-hamburger-btn" onClick={() => setSidebarOpen(true)}>
+              ☰
+            </button>
         </div>
       </aside>
 
-      {/* CONTENEDOR PRINCIPAL */}
       <div className="erp-main-wrapper">
-        
-        {/* TOPBAR */}
         <header className="erp-topbar">
-          <h1 className="erp-module-title">Operaciones de Salón</h1>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <button className="erp-hamburger-btn" onClick={() => setSidebarOpen(true)}>
+              ☰
+            </button>
+            <h1 className="erp-module-title">Salón</h1>
+          </div>
           <div className="erp-topbar-actions">
              <button className="erp-btn erp-btn-outline" onClick={() => setModalVirtualDelivery(true)}>
-              <i className="fas fa-motorcycle"></i> Nuevo Delivery
+              <i className="fas fa-motorcycle"></i> <span className="d-none d-sm-inline">Nuevo Delivery</span>
             </button>
           </div>
         </header>
 
-        {/* WORKSPACE */}
         <main className="erp-workspace">
-          
-          {/* Módulo Central: Salón de Mesas */}
           <section className="erp-salon-area">
             <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem'}}>
                <div style={{fontSize: '0.85rem', fontWeight: 800, color: '#8A7060', textTransform: 'uppercase'}}><i className="fas fa-th-large"></i> VISOR DE MESAS ({mesas.length})</div>
@@ -452,7 +604,6 @@ export default function App() {
             </div>
           </section>
 
-          {/* Panel Derecho: Comandera DataGrid */}
           <aside className="erp-comandera">
             <div className="erp-com-header">
               <div className="erp-com-title">Mesa Seleccionada</div>
@@ -463,7 +614,15 @@ export default function App() {
             </div>
 
             <div className="erp-com-toolbar d-flex gap-2">
-              <button className="erp-btn erp-btn-outline" style={{flex: 1}} disabled={!mesaSeleccionada} onClick={() => modalInstance?.show()}>
+              <button 
+                className="erp-btn erp-btn-outline" 
+                style={{flex: 1}} 
+                disabled={!mesaSeleccionada} 
+                onClick={() => {
+                  setFiltroCarta('');
+                  modalInstance?.show();
+                }}
+              >
                 <i className="fas fa-search"></i> Agregar Plato
               </button>
               <button className="erp-btn erp-btn-outline" style={{flex: 0.8}} disabled={!mesaSeleccionada} onClick={() => setModalFueraCarta(true)} title="Ítem Libre">
@@ -519,7 +678,9 @@ export default function App() {
               <div className="erp-action-grid">
                 <button className="erp-btn erp-btn-outline" disabled={!mesaActiva} onClick={() => agregarPlatoDirecto('Taper (Chico)', 1.00, 'general')} style={{fontSize: '0.75rem', padding: '8px'}}><i className="fas fa-box-open"></i> Taper S/1</button>
                 <button className="erp-btn erp-btn-outline" disabled={!mesaActiva} onClick={() => agregarPlatoDirecto('Taper (Grande)', 2.00, 'general')} style={{fontSize: '0.75rem', padding: '8px'}}><i className="fas fa-box"></i> Taper S/2</button>
-                <button className="erp-btn erp-btn-outline" disabled={!mesaActiva} onClick={() => agregarPlatoDirecto('Refresco', esDomingo ? 3.00 : 2.00, 'general')} style={{gridColumn: '1 / span 2', fontSize: '0.75rem', padding: '8px'}}><i className="fas fa-glass-whiskey"></i> Refresco (S/ {esDomingo ? '3' : '2'})</button>
+                
+                {/* 🟢 El precio dinámico del Refresco cambia automáticamente */}
+                <button className="erp-btn erp-btn-outline" disabled={!mesaActiva} onClick={() => agregarPlatoDirecto('Refresco', modoDomingo ? 3.50 : 2.00, 'general')} style={{gridColumn: '1 / span 2', fontSize: '0.75rem', padding: '8px'}}><i className="fas fa-glass-whiskey"></i> Refresco (S/ {modoDomingo ? '3.50' : '2.00'})</button>
               </div>
 
               <div className="erp-totals-row">
@@ -545,10 +706,6 @@ export default function App() {
         </main>
       </div>
 
-      {/* ==================================================
-          MODALES BOOTSTRAP (MANTENIENDO LOGICA EXACTA, APLICANDO CLASES ERP)
-          ================================================== */}
-      
       {/* 1. MODAL CARTA ERP */}
       <div className="modal fade" ref={modalRef} tabIndex="-1" aria-hidden="true">
         <div className="modal-dialog modal-dialog-scrollable modal-xl">
@@ -561,10 +718,18 @@ export default function App() {
               <input type="text" className="erp-input" placeholder="Filtrar catálogo (Ej: Arroz, Ceviche...)" value={filtroCarta} onChange={e => setFiltroCarta(e.target.value)} />
             </div>
             <div className="erp-modal-body">
-              {/* Menu del día PRIMERO */}
-              {carta.filter(c => c.nombre === 'entradas' || c.nombre === 'segundos').map((cat, idx) => {
-                if (esDomingo && cat.nombre === 'entradas') return null;
-                const itemsFiltrados = cat.items.filter(p => p.nombre.toLowerCase().includes(filtroCarta.toLowerCase()));
+              {carta.filter(c => 
+                ['entradas', 'segundos'].includes(c.nombre.toLowerCase().trim())
+              ).map((cat, idx) => {
+                const nombreNormalizado = cat.nombre.toLowerCase().trim();
+                
+                // 🟢 Filtro estricto evaluado con el estado del servidor
+                if (modoDomingo && nombreNormalizado === 'entradas') return null;
+
+                const itemsFiltrados = cat.items.filter(p => 
+                  p.nombre.toLowerCase().includes(filtroCarta.toLowerCase())
+                );
+                
                 if (itemsFiltrados.length === 0) return null;
                 return (
                   <div key={`menu-${idx}`}>
@@ -582,7 +747,6 @@ export default function App() {
                 );
               })}
               
-              {/* Carta General DESPUÉS */}
               {carta.filter(c => c.nombre !== 'entradas' && c.nombre !== 'segundos').map((cat, idx) => {
                 const itemsFiltrados = cat.items.filter(p => p.nombre.toLowerCase().includes(filtroCarta.toLowerCase()));
                 if (itemsFiltrados.length === 0) return null;
@@ -615,7 +779,6 @@ export default function App() {
               <button className="erp-modal-close" onClick={() => modalCobroInstance?.hide()}><i className="fas fa-times"></i></button>
             </div>
             <div className="erp-modal-body">
-              {/* Total a cobrar gigante */}
               <div style={{textAlign: 'center', marginBottom: '1.5rem', background: '#FFFFFF', padding: '1.5rem', borderRadius: '12px', border: '1px solid #E5E0D8'}}>
                 <div style={{fontSize: '0.8rem', color: '#8A7060', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.1em'}}>Total a Cobrar</div>
                 <div style={{fontFamily: 'Playfair Display, serif', fontSize: '3.5rem', fontWeight: 800, color: '#10B981', lineHeight: 1}}>
@@ -623,13 +786,11 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Input Efectivo destacado */}
               <div className="erp-input-group">
                 <label className="erp-label" style={{color: '#065F46'}}><i className="fas fa-money-bill-wave"></i> Efectivo Recibido</label>
                 <input type="number" className="erp-input" style={{fontSize: '1.5rem', fontWeight: 800, textAlign: 'right', color: '#120B06', background: '#D1FAE5', borderColor: '#10B981'}} value={montoRecibido} onChange={e => setMontoRecibido(e.target.value)} placeholder="0.00" />
               </div>
 
-              {/* Inputs Digitales en cuadrícula */}
               <div style={{fontSize: '0.75rem', fontWeight: 800, color: '#8A7060', textTransform: 'uppercase', margin: '1.5rem 0 0.75rem'}}>Billeteras y Tarjetas</div>
               <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px'}}>
                 {['yape', 'plin', 'tarjeta'].map(m => (
@@ -640,7 +801,6 @@ export default function App() {
                 ))}
               </div>
 
-              {/* Resumen Calculado */}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1.5rem', padding: '1rem 1.25rem', background: '#FFFFFF', borderRadius: '12px', border: '1px solid #E5E0D8' }}>
                  <div>
                    <div style={{fontSize: '0.75rem', color: '#8A7060', fontWeight: 800, textTransform: 'uppercase'}}>Falta Pagar</div>
@@ -867,9 +1027,13 @@ export default function App() {
                   <select className="erp-input" style={{marginTop: '8px'}} value={ticketeraCaja} onChange={e => setTicketeraCaja(e.target.value)}><option value="">-- No asignada --</option>{impresorasUSB.map((imp, idx) => (<option key={idx} value={imp}>{imp}</option>))}</select>
                 </div>
                 <div className="erp-input-group" style={{marginBottom: '2.5rem'}}>
-                  <label className="erp-label" style={{color: '#D7263D'}}><i className="fas fa-wifi"></i> Impresora Remota (Cocina IP)</label>
-                  <input type="text" className="erp-input" style={{marginTop: '8px'}} placeholder="Ej. 192.168.1.200" value={ticketeraCocina} onChange={e => setTicketeraCocina(e.target.value)} />
+                  <label className="erp-label" style={{color: '#D7263D'}}><i className="fas fa-fire"></i> Impresora Remota (Cocina)</label>
+                  <select className="erp-input" style={{marginTop: '8px'}} value={ticketeraCocina} onChange={e => setTicketeraCocina(e.target.value)}>
+                    <option value="">-- No asignada --</option>
+                    {impresorasUSB.map((imp, idx) => (<option key={idx} value={imp}>{imp}</option>))}
+                  </select>
                 </div>
+                {/* 🟢 SE ELIMINÓ EL TOGGLE MANUAL DE DOMINGO DE AQUÍ */}
                 <button className="erp-btn erp-btn-primary" style={{width: '100%', padding: '1rem'}} onClick={guardarConfiguracion}>Aplicar Configuración</button>
               </div>
             </div>
@@ -960,6 +1124,50 @@ export default function App() {
                   </div>
                   <button type="submit" className="erp-btn" style={{background: '#006989', color: '#FFF', width: '100%'}}>Agregar Línea</button>
                 </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMACIÓN ESTILIZADO */}
+      {confirmModal.visible && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(18,11,6,0.7)', zIndex: 2000 }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', maxWidth: '380px', margin: '0 auto' }}>
+              <div className="erp-modal-header py-3" style={{ background: '#D7263D', borderBottom: 'none' }}>
+                <h5 className="erp-modal-title" style={{ fontSize: '1.1rem' }}>{confirmModal.title}</h5>
+                <button className="erp-modal-close" onClick={() => setConfirmModal({ ...confirmModal, visible: false })}>✕</button>
+              </div>
+              <div className="erp-modal-body text-center py-4" style={{ background: '#F4F1ED' }}>
+                <i className="fas fa-exclamation-triangle mb-3" style={{ fontSize: '2.5rem', color: '#D7263D' }}></i>
+                <p className="mb-4" style={{ color: '#2D241E', fontWeight: '700', fontSize: '0.95rem', padding: '0 10px' }}>
+                  {confirmModal.message}
+                </p>
+                <div className="d-flex gap-2">
+                  <button className="erp-btn erp-btn-outline flex-grow-1" onClick={() => setConfirmModal({ ...confirmModal, visible: false })}>
+                    CANCELAR
+                  </button>
+                  <button className="erp-btn flex-grow-1" style={{ background: '#D7263D', color: '#FFF' }} onClick={confirmModal.onConfirm}>
+                    CONFIRMAR
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE ALERTAS ESTILIZADO */}
+      {alertModal.visible && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(18,11,6,0.7)', zIndex: 2100 }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', maxWidth: '350px', margin: '0 auto' }}>
+              <div className="erp-modal-body text-center py-5" style={{ background: '#FFFFFF' }}>
+                <i className={`fas ${alertModal.type === 'success' ? 'fa-check-circle text-success' : 'fa-exclamation-circle text-danger'} mb-3`} style={{ fontSize: '3.5rem' }}></i>
+                <h4 style={{ fontFamily: 'Playfair Display', fontWeight: '800' }}>{alertModal.title}</h4>
+                <p className="text-muted mb-4">{alertModal.message}</p>
+                <button className="erp-btn erp-btn-primary w-100" onClick={() => setAlertModal({ ...alertModal, visible: false })}>ENTENDIDO</button>
               </div>
             </div>
           </div>

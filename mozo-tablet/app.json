@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "mozo-tablet",
+    "name": "POS-Mozo",
     "slug": "mozo-tablet",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -37,6 +37,14 @@
           "backgroundColor": "#ffffff",
           "dark": {
             "backgroundColor": "#000000"
+          }
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
           }
         }
       ]

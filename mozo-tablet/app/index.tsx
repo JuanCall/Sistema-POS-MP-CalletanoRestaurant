@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, Alert, Modal, SafeAreaView, Platform,
-  StatusBar as RNStatusBar, Dimensions, Animated, KeyboardAvoidingView
+  StatusBar as RNStatusBar, Dimensions, Animated, KeyboardAvoidingView, BackHandler
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io } from 'socket.io-client';
@@ -12,20 +12,24 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 
 const { width: SW } = Dimensions.get('window');
 
-// ── Nueva Paleta Corporativa ──────────────────────────────────
+// ── Paleta Corporativa ERP (High-End POS) ─────────────────────
 const C = {
-  bg:          '#eaebed', // Fondo general gris claro
-  primary:     '#006989', // Azul profundo
-  primarySoft: 'rgba(0, 105, 137, 0.12)',
-  danger:      '#D7263D', // Rojo carmesí
-  dangerSoft:  'rgba(215, 38, 61, 0.12)',
-  success:     '#10B981', // Verde éxito
+  bg:          '#F4F1ED', // Crema cálido (Fondo base)
+  surface:     '#FFFFFF', // Blanco puro (Tarjetas)
+  primary:     '#120B06', // Espresso profundo
+  primarySoft: 'rgba(18, 11, 6, 0.05)',
+  gold:        '#D4A843', // Oro/Ámbar
+  goldSoft:    'rgba(212, 168, 67, 0.12)',
+  danger:      '#D7263D', // Carmesí
+  dangerSoft:  '#FDE8E8',
+  success:     '#10B981', // Esmeralda
   successSoft: 'rgba(16, 185, 129, 0.12)',
-  surface:     '#ffffff', // Tarjetas blancas
-  textDark:    '#1e293b', // Texto principal
-  textMuted:   '#64748b', // Texto secundario
-  border:      '#d1d5db', // Bordes sutiles
-  overlay:     'rgba(0,0,0,0.5)',
+  textDark:    '#2D241E', // Texto principal (Hierarchy 1)
+  textMuted:   '#8A7060', // Texto secundario (Hierarchy 2)
+  border:      '#E5E0D8', // Separación estándar (Border Progression)
+  borderFocus: '#D1C9C0', // Separación con énfasis
+  overlay:     'rgba(18, 11, 6, 0.7)', // Backdrop
+  white: '#FFFFFF',
 };
 
 export default function App() {
@@ -55,7 +59,9 @@ export default function App() {
 
   const socketRef   = useRef(null);
   const carritoAnim = useRef(new Animated.Value(0)).current;
-  const [modoDomingo, setModoDomingo] = useState(new Date().getDay() === 0);
+  
+  // 🟢 Iniciamos en false, el servidor mandará la verdad absoluta
+  const [modoDomingo, setModoDomingo] = useState(false);
 
   useEffect(() => {
     Animated.spring(carritoAnim, {
@@ -73,6 +79,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const backAction = () => {
+      if (vistaActual === 'comandar') {
+        setVistaActual('mesas');
+        return true; 
+      }
+      return false; 
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+    return () => backHandler.remove(); 
+  }, [vistaActual]);
+
+  useEffect(() => {
     if (!ipServidor || modoConfig) return;
     const API_URL = `http://${ipServidor}:3001`;
     setServerStatus('Conectando...');
@@ -80,12 +99,16 @@ export default function App() {
 
     const cargarDatos = async () => {
       try {
-        const [resMesas, resCarta] = await Promise.all([
+        // 🟢 Se cambian las llamadas a la API para solicitar directamente el estado del Domingo
+        const [resMesas, resCarta, resDomingo] = await Promise.all([
           axios.get(`${API_URL}/api/mesas`, { timeout: 4000 }),
-          axios.get(`${API_URL}/api/carta`, { timeout: 4000 })
+          axios.get(`${API_URL}/api/carta`, { timeout: 4000 }),
+          axios.get(`${API_URL}/api/modo-domingo`, { timeout: 4000 })
         ]);
         setMesas(resMesas.data);
         setCarta(resCarta.data);
+        setModoDomingo(resDomingo.data.modoDomingo); // Sincronizado
+        
         setServerStatus('Conectado');
         setConectado(true);
       } catch {
@@ -150,7 +173,7 @@ export default function App() {
     const modActual = carrito[index].modalidad;
     const nextMod = orden[(orden.indexOf(modActual) + 1) % orden.length];
 
-    if (nextMod === 'delivery' || nextMod === 'delivery_centro') {
+    if ((nextMod === 'delivery' || nextMod === 'delivery_centro') && (modActual !== 'delivery' && modActual !== 'delivery_centro')) {
       setDatosDelivery({ 
         nombre: carrito[index].cliente?.nombre || '', 
         direccion: carrito[index].cliente?.direccion || '', 
@@ -162,7 +185,8 @@ export default function App() {
     } else {
       setCarrito(prev => {
         const n = [...prev];
-        n[index] = { ...n[index], modalidad: nextMod, cliente: null };
+        const clienteActual = n[index].cliente;
+        n[index] = { ...n[index], modalidad: nextMod, cliente: (nextMod === 'delivery' || nextMod === 'delivery_centro') ? clienteActual : null };
         return n;
       });
     }
@@ -225,7 +249,6 @@ export default function App() {
     } catch { Alert.alert('Error', '❌ No se pudo enviar la comanda'); }
   };
 
-  // Iconos Dinámicos
   const ModIcon = ({ mod, color }) => {
     if (mod === 'local') return <MaterialCommunityIcons name="silverware-fork-knife" size={16} color={color} />;
     if (mod === 'llevar') return <Feather name="shopping-bag" size={16} color={color} />;
@@ -242,10 +265,9 @@ export default function App() {
 
   const totalItems = carrito.reduce((s, i) => s + i.cantidad, 0);
 
-  // --- NUEVO: Formateo y Ordenamiento de Mesas ---
   const formatMesaName = (id) => {
     if (!id) return '';
-    const idStr = String(id).replace('.0', ''); // Limpiamos decimales fantasma
+    const idStr = String(id).replace('.0', ''); 
     if (idStr.startsWith('DEL-')) return idStr;
     return `MESA ${idStr.replace('mesa_', '')}`;
   };
@@ -308,7 +330,9 @@ export default function App() {
   // PANTALLA: COMANDERA TÁCTIL
   // ═══════════════════════════════════════════════════════════
   if (vistaActual === 'comandar' && mesaActiva) {
-    const menuDelDia   = carta.filter(c => c.nombre === 'entradas' || c.nombre === 'segundos');
+    const menuDelDia = carta.filter(c => 
+      ['entradas', 'segundos'].includes(c.nombre.toLowerCase().trim())
+    );
     const cartaGeneral = carta.filter(c => c.nombre !== 'entradas' && c.nombre !== 'segundos');
 
     const sheetTranslate = carritoAnim.interpolate({ inputRange: [0, 1], outputRange: [380, 0] });
@@ -316,11 +340,15 @@ export default function App() {
     return (
       <SafeAreaView style={s.safeAreaBlue}>
         <StatusBar style="light" />
-        {/* Navbar */}
         <View style={s.navbar}>
-          <TouchableOpacity style={s.navBackBtn} onPress={() => setVistaActual('mesas')} activeOpacity={0.75}>
-            <Feather name="chevron-left" size={28} color={C.white} />
-            <Text style={s.navBackText}>Mesas</Text>
+          <TouchableOpacity 
+            style={s.navBackBtn} 
+            onPress={() => setVistaActual('mesas')} 
+            activeOpacity={0.75}
+            hitSlop={{ top: 25, bottom: 25, left: 25, right: 25 }} 
+          >
+            <Feather name="chevron-left" size={28} color={C.surface} /> 
+            <Text style={s.navBackText}>Mesas</Text> 
           </TouchableOpacity>
           <Text style={s.navTitle} numberOfLines={1}>
             {mesaActiva ? formatMesaName(mesaActiva.id) : ''}
@@ -330,7 +358,6 @@ export default function App() {
 
         <ScrollView style={s.scrollBase} contentContainerStyle={{ padding: 12, paddingBottom: carrito.length > 0 ? 320 : 40 }} keyboardShouldPersistTaps="handled">
           
-          {/* Buscador */}
           <View style={s.searchWrap}>
             <Feather name="search" size={20} color={C.textMuted} style={s.searchIcon} />
             <TextInput
@@ -347,17 +374,24 @@ export default function App() {
             )}
           </View>
 
-          {/* Atajos */}
           {filtroCarta === '' && (
             <>
               <View style={s.quickGrid}>
-                <TouchableOpacity style={[s.quickBtn, s.quickBtnBlue]} onPress={() => agregarAlCarrito({ nombre: 'Refresco', precio: modoDomingo ? 3.0 : 2.0 }, 'GENERAL')} activeOpacity={0.8}>
+                <TouchableOpacity 
+                  style={[s.quickBtn, s.quickBtnBlue]} 
+                  onPress={() => agregarAlCarrito({ nombre: 'Refresco', precio: modoDomingo ? 3.5 : 2.0 }, 'GENERAL')} 
+                  activeOpacity={0.8}
+                >
                   <MaterialCommunityIcons name="cup-water" size={28} color={C.primary} style={{marginBottom: 4}} />
                   <Text style={s.quickBtnLabel}>Refresco</Text>
-                  <Text style={s.quickBtnPrice}>S/ {modoDomingo ? '3.00' : '2.00'}</Text>
+                  <Text style={s.quickBtnPrice}>S/ {modoDomingo ? '3.50' : '2.00'}</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[s.quickBtn, s.quickBtnRed]} onPress={() => agregarAlCarrito({ nombre: 'Humita', precio: modoDomingo ? 4.0 : 3.0 }, 'GENERAL')} activeOpacity={0.8}>
+                <TouchableOpacity 
+                  style={[s.quickBtn, s.quickBtnRed]} 
+                  onPress={() => agregarAlCarrito({ nombre: 'Humita', precio: modoDomingo ? 4.0 : 3.0 }, 'GENERAL')} 
+                  activeOpacity={0.8}
+                >
                   <MaterialCommunityIcons name="corn" size={28} color={C.danger} style={{marginBottom: 4}} />
                   <Text style={[s.quickBtnLabel, {color: C.danger}]}>Humita</Text>
                   <Text style={[s.quickBtnPrice, {color: C.danger}]}>S/ {modoDomingo ? '4.00' : '3.00'}</Text>
@@ -371,7 +405,6 @@ export default function App() {
             </>
           )}
 
-          {/* Ya pedido */}
           {mesaActiva.pedido?.length > 0 && filtroCarta === '' && (
             <View style={s.yaPedidoCard}>
               <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
@@ -390,12 +423,12 @@ export default function App() {
             </View>
           )}
 
-          {/* Carta de Platos */}
           {menuDelDia.length > 0 && (
             <View style={s.seccionWrap}>
               <Text style={s.seccionTitle}><MaterialCommunityIcons name="silverware-clean" size={18} color={C.textMuted}/> MENÚ DEL DÍA</Text>
               {menuDelDia.map((cat, idx) => {
-                if (modoDomingo && cat.nombre === 'entradas') return null;
+                if (modoDomingo && cat.nombre.toLowerCase().trim() === 'entradas') return null;
+                
                 const items = cat.items.filter(p => p.nombre.toLowerCase().includes(filtroCarta.toLowerCase()));
                 if (items.length === 0) return null;
                 const esEntrada = cat.nombre === 'entradas';
@@ -437,7 +470,6 @@ export default function App() {
           })}
         </ScrollView>
 
-        {/* Carrito Flotante */}
         {carrito.length > 0 && (
           <Animated.View style={[s.carritoSheet, { transform: [{ translateY: sheetTranslate }] }]}>
             <View style={s.carritoHandle}><View style={s.carritoHandleBar} /></View>
@@ -502,7 +534,6 @@ export default function App() {
           </Animated.View>
         )}
 
-        {/* --- MODALES REUTILIZABLES --- */}
         <Modal visible={modalNotaVisible} transparent animationType="fade">
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.modalOverlay}>
             <View style={s.modalCard}>
@@ -558,8 +589,13 @@ export default function App() {
             <View style={[s.statusDot, { backgroundColor: conectado ? C.success : C.danger }]} />
             <Text style={s.statusPillText} numberOfLines={1}>{serverStatus}</Text>
           </View>
-          <TouchableOpacity style={s.cfgIconBtn} onPress={() => setModoConfig(true)} activeOpacity={0.75}>
-            <Feather name="settings" size={20} color={C.white} />
+          <TouchableOpacity 
+            style={s.cfgIconBtn} 
+            onPress={() => setModoConfig(true)} 
+            activeOpacity={0.75}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }} 
+          >
+            <Feather name="settings" size={20} color={C.surface} /> 
           </TouchableOpacity>
         </View>
       </View>
@@ -607,7 +643,7 @@ export default function App() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// ESTILOS (Totalmente rediseñados)
+// ESTILOS 
 // ═══════════════════════════════════════════════════════════
 const PT = Platform.OS === 'android' ? RNStatusBar.currentHeight ?? 0 : 0;
 
@@ -615,124 +651,126 @@ const s = StyleSheet.create({
   safeAreaBlue: { flex: 1, backgroundColor: C.primary, paddingTop: PT },
   scrollBase:   { flex: 1, backgroundColor: C.bg },
 
-  // ── Config ──
-  cfgScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: C.bg },
+  cfgScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: C.bg },
   cfgCard: {
-    backgroundColor: C.surface, borderRadius: 24, padding: 28, width: '100%', maxWidth: 380,
-    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 6,
+    backgroundColor: C.surface, borderRadius: 24, padding: 32, width: '100%', maxWidth: 380,
+    borderWidth: 1, borderColor: C.borderFocus,
   },
-  cfgLogoWrap: { marginBottom: 20, alignItems: 'center' },
-  cfgLogo:     { fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', fontSize: 34, fontWeight: '700', color: C.primary, letterSpacing: -0.5 },
-  cfgLogoSub:  { fontSize: 10, fontWeight: '700', letterSpacing: 2, color: C.textMuted, marginTop: 4 },
-  cfgDivider:  { height: 1, backgroundColor: C.border, marginBottom: 22, opacity: 0.5 },
-  cfgLabel:    { fontSize: 11, fontWeight: '700', letterSpacing: 1, color: C.textMuted, marginBottom: 8, textTransform: 'uppercase' },
+  cfgLogoWrap: { marginBottom: 24, alignItems: 'center' },
+  cfgLogo:     { fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', fontSize: 32, fontWeight: '700', color: C.gold, letterSpacing: -0.5 },
+  cfgLogoSub:  { fontSize: 10, fontWeight: '800', letterSpacing: 2, color: C.textMuted, marginTop: 6 },
+  cfgDivider:  { height: 1, backgroundColor: C.border, marginBottom: 24 },
+  cfgLabel:    { fontSize: 11, fontWeight: '800', letterSpacing: 1, color: C.textMuted, marginBottom: 8, textTransform: 'uppercase' },
   cfgInput: {
-    backgroundColor: C.bg, color: C.textDark, fontSize: 20, fontWeight: '700', textAlign: 'center', letterSpacing: 2,
-    borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border,
+    backgroundColor: C.surface, color: C.textDark, fontSize: 18, fontWeight: '700', textAlign: 'center', letterSpacing: 1,
+    borderRadius: 12, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: C.borderFocus,
   },
 
-  // ── Navbar ──
   navbar: {
-    backgroundColor: C.primary, height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16,
+    backgroundColor: C.primary, height: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16,
+    borderBottomWidth: 2, borderBottomColor: C.gold
   },
-  navBrand: { fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', fontSize: 22, fontWeight: '700', color: C.surface },
-  navTitle: { position: 'absolute', left: 0, right: 0, textAlign: 'center', fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', fontSize: 18, fontWeight: '700', color: C.surface, pointerEvents: 'none' },
-  navRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  navBackBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingRight: 16, marginLeft: -8 },
-  navBackText: { color: C.white, fontWeight: '700', fontSize: 16, marginLeft: 2 },
-  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.1)' },
+  navBrand: { fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', fontSize: 24, fontWeight: '700', color: C.gold },
+  navTitle: { position: 'absolute', left: 0, right: 0, textAlign: 'center', fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', fontSize: 20, fontWeight: '700', color: C.surface, pointerEvents: 'none' },
+  navRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  navBackBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingVertical: 12, 
+    paddingHorizontal: 8, 
+    marginLeft: -4 
+  },
+  navBackText: { color: C.surface, fontWeight: '700', fontSize: 16, marginLeft: 2 },
+  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 99, backgroundColor: C.primarySoft, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusPillText: { fontSize: 11, fontWeight: '600', color: C.white },
-  cfgIconBtn: { padding: 8 },
+  statusPillText: { fontSize: 11, fontWeight: '700', color: C.surface, textTransform: 'uppercase', letterSpacing: 0.5 },
+  cfgIconBtn: { padding: 18 },
 
-  // ── Mesas ──
-  mesasSectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: C.textMuted, marginBottom: 12, marginLeft: 4, textTransform: 'uppercase' },
+  mesasSectionLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1.5, color: C.textMuted, marginBottom: 16, marginLeft: 4, textTransform: 'uppercase' },
   mesasGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   mesaCard: {
-    width: (SW - 40) / 2, backgroundColor: C.surface, borderRadius: 16, padding: 16,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2,
-    overflow: 'hidden', position: 'relative'
+    width: (SW - 40) / 2, backgroundColor: C.surface, borderRadius: 12, padding: 16,
+    borderWidth: 1, borderColor: C.border, overflow: 'hidden'
   },
-  mesaCardOcupada: { backgroundColor: '#fffcfc' },
-  mesaCardBar: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 4 },
-  mesaCardNombre: { fontSize: 16, fontWeight: '700', color: C.textDark, marginBottom: 8, marginLeft: 6 },
-  mesaCardBadge: { alignSelf: 'flex-start', marginLeft: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginBottom: 12 },
+  mesaCardOcupada: { backgroundColor: C.surface, borderColor: C.danger, borderWidth: 2 },
+  mesaCardBar: { position: 'absolute', top: 0, left: 0, right: 0, height: 4 },
+  mesaCardNombre: { fontSize: 16, fontWeight: '800', color: C.textDark, marginBottom: 8, marginTop: 4 },
+  mesaCardBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 12, borderWidth: 1 },
   mesaCardBadgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' },
-  mesaCardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginLeft: 6, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.bg },
-  mesaCardItems: { fontSize: 11, color: C.textMuted, fontWeight: '600' },
-  mesaCardTotal: { fontSize: 14, fontWeight: '700', color: C.textMuted },
+  mesaCardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTopWidth: 1, borderTopColor: C.border },
+  mesaCardItems: { fontSize: 12, color: C.textMuted, fontWeight: '700' },
+  mesaCardTotal: { fontSize: 14, fontWeight: '800', color: C.textMuted },
   mesaCardTotalActivo: { color: C.primary, fontWeight: '800' },
-  emptyText: { color: C.textMuted, textAlign: 'center', marginTop: 40, fontSize: 15, fontWeight: '500' },
+  emptyText: { color: C.textMuted, textAlign: 'center', marginTop: 40, fontSize: 14, fontWeight: '600' },
 
-  // ── Comandera UI ──
-  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderRadius: 12, paddingHorizontal: 14, marginBottom: 16, shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 },
-  searchIcon: { marginRight: 10 },
-  searchInput: { flex: 1, color: C.textDark, fontSize: 15, fontWeight: '500', paddingVertical: 14 },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderRadius: 12, paddingHorizontal: 16, marginBottom: 20, borderWidth: 1, borderColor: C.borderFocus },
+  searchIcon: { marginRight: 12 },
+  searchInput: { flex: 1, color: C.textDark, fontSize: 16, fontWeight: '600', paddingVertical: 16 },
   searchClear: { padding: 8 },
 
-  quickGrid: { flexDirection: 'row', gap: 12, marginBottom: 12 },
-  quickBtn: { flex: 1, borderRadius: 16, padding: 16, alignItems: 'center', backgroundColor: C.surface, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
-  quickBtnLabel: { color: C.primary, fontWeight: '700', fontSize: 14, marginBottom: 2 },
-  quickBtnPrice: { color: C.textMuted, fontWeight: '600', fontSize: 13 },
-  fueraCarta: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, backgroundColor: C.surface, borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: C.border, borderStyle: 'dashed' },
-  fueraCartaText: { color: C.textMuted, fontWeight: '600', fontSize: 14 },
+  quickGrid: { flexDirection: 'row', gap: 12, marginBottom: 16 },
+  quickBtn: { flex: 1, borderRadius: 12, padding: 16, alignItems: 'center', backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
+  quickBtnLabel: { color: C.primary, fontWeight: '800', fontSize: 14, marginBottom: 4 },
+  quickBtnPrice: { color: C.textMuted, fontWeight: '700', fontSize: 13 },
+  
+  fueraCarta: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, backgroundColor: C.bg, borderRadius: 12, padding: 16, marginBottom: 24, borderWidth: 1, borderColor: C.borderFocus, borderStyle: 'dashed' },
+  fueraCartaText: { color: C.textDark, fontWeight: '700', fontSize: 14 },
 
-  yaPedidoCard: { backgroundColor: C.primarySoft, borderRadius: 16, padding: 16, marginBottom: 20 },
+  yaPedidoCard: { backgroundColor: C.surface, borderRadius: 12, padding: 16, marginBottom: 24, borderWidth: 1, borderColor: C.border },
   yaPedidoTitle: { fontSize: 11, fontWeight: '800', letterSpacing: 1, color: C.primary, marginLeft: 6, textTransform: 'uppercase' },
-  yaPedidoRow: { paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' },
+  yaPedidoRow: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border },
   yaPedidoItem: { fontSize: 14 },
 
-  seccionWrap: { marginBottom: 20 },
-  seccionTitle: { fontSize: 12, fontWeight: '800', letterSpacing: 1, color: C.textMuted, textTransform: 'uppercase', paddingBottom: 8, marginBottom: 12 },
-  catLabel: { fontSize: 12, fontWeight: '700', color: C.textMuted, textTransform: 'uppercase', marginBottom: 8, marginTop: 4 },
+  seccionWrap: { marginBottom: 24 },
+  seccionTitle: { fontSize: 12, fontWeight: '800', letterSpacing: 1, color: C.textMuted, textTransform: 'uppercase', paddingBottom: 8, marginBottom: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  catLabel: { fontSize: 12, fontWeight: '800', color: C.primary, textTransform: 'uppercase', marginBottom: 12, marginTop: 4 },
   platosGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  platoBtn: { width: (SW - 36) / 2, backgroundColor: C.surface, borderRadius: 12, padding: 14, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 5, elevation: 1 },
-  platoBtnBar: { position: 'absolute', top: 0, left: 0, right: 0, height: 4 },
-  platoNombre: { color: C.textDark, fontWeight: '600', fontSize: 14, lineHeight: 18, marginTop: 6, marginBottom: 6 },
-  platoPrecio: { fontWeight: '800', fontSize: 14 },
+  platoBtn: { width: (SW - 36) / 2, backgroundColor: C.surface, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: C.border },
+  platoBtnBar: { position: 'absolute', top: 0, left: 0, right: 0, height: 3 },
+  platoNombre: { color: C.textDark, fontWeight: '700', fontSize: 14, lineHeight: 18, marginTop: 8, marginBottom: 8 },
+  platoPrecio: { fontWeight: '800', fontSize: 15 },
 
-  // ── Carrito ──
-  carritoSheet: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: C.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '75%', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 20, shadowOffset: { width: 0, height: -5 }, elevation: 24 },
-  carritoHandle: { alignItems: 'center', paddingTop: 12, paddingBottom: 8 },
-  carritoHandleBar: { width: 40, height: 5, backgroundColor: C.border, borderRadius: 99 },
-  carritoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: C.bg },
-  carritoHeaderTitle: { fontSize: 14, fontWeight: '800', color: C.textDark },
-  carritoHeaderBadge: { backgroundColor: C.primary, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  carritoHeaderBadgeText:{ color: C.white, fontWeight: '800', fontSize: 13 },
-  carritoLista: { paddingHorizontal: 16, maxHeight: 300 },
-  carritoItem: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.bg },
+  carritoSheet: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '55%', borderWidth: 1, borderColor: C.borderFocus },
+  carritoHandle: { alignItems: 'center', paddingTop: 12, paddingBottom: 12 },
+  carritoHandleBar: { width: 48, height: 4, backgroundColor: C.borderFocus, borderRadius: 99 },
+  carritoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: C.border },
+  carritoHeaderTitle: { fontSize: 14, fontWeight: '800', color: C.textDark, textTransform: 'uppercase', letterSpacing: 0.5 },
+  carritoHeaderBadge: { backgroundColor: C.primary, width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  carritoHeaderBadgeText:{ color: C.surface, fontWeight: '800', fontSize: 13 },
+  carritoLista: { paddingHorizontal: 16, maxHeight: 200 },
+  carritoItem: { paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: C.border },
   carritoItemRow1: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
-  carritoItemNombre:{ color: C.textDark, fontWeight: '600', fontSize: 15, flex: 1, lineHeight: 22 },
-  carritoItemNota: { color: C.danger, fontSize: 12, marginTop: 4, fontWeight: '500' },
-  carritoItemPrecio:{ color: C.textMuted, fontWeight: '700', fontSize: 15, marginLeft: 12 },
+  carritoItemNombre:{ color: C.textDark, fontWeight: '700', fontSize: 15, flex: 1, lineHeight: 22 },
+  carritoItemNota: { color: C.danger, fontSize: 12, marginTop: 6, fontWeight: '600' },
+  carritoItemPrecio:{ color: C.textMuted, fontWeight: '800', fontSize: 15, marginLeft: 12 },
   carritoItemRow2: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 
-  modBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: C.bg },
-  modBtnActiva: { backgroundColor: C.primary },
-  modBtnText: { color: C.textMuted, fontWeight: '700', fontSize: 12, marginLeft: 6 },
-  modBtnTextActiva: { color: C.white },
+  modBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
+  modBtnActiva: { backgroundColor: C.primary, borderColor: C.primary },
+  modBtnText: { color: C.textDark, fontWeight: '700', fontSize: 12, marginLeft: 6 },
+  modBtnTextActiva: { color: C.surface },
 
-  carritoControles: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  notaBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
-  qtyControls: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, borderRadius: 10 },
-  qtyBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  qtyNumber: { color: C.textDark, fontWeight: '800', fontSize: 16, minWidth: 24, textAlign: 'center' },
-  eliminarBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: C.dangerSoft, alignItems: 'center', justifyContent: 'center' },
+  carritoControles: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  notaBtn: { width: 40, height: 40, borderRadius: 8, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
+  qtyControls: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderRadius: 8, borderWidth: 1, borderColor: C.border },
+  qtyBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  qtyNumber: { color: C.textDark, fontWeight: '800', fontSize: 16, minWidth: 28, textAlign: 'center' },
+  eliminarBtn: { width: 40, height: 40, borderRadius: 8, backgroundColor: C.dangerSoft, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.dangerSoft },
 
-  carritoFooter: { padding: 16, borderTopWidth: 1, borderTopColor: C.bg },
+  carritoFooter: { padding: 16, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: C.bg },
   
-  // ── Botones Genéricos y Modales ───
-  btnPrimary: { backgroundColor: C.primary, borderRadius: 14, padding: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', shadowColor: C.primary, shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: {width: 0, height: 4}, elevation: 4 },
-  btnPrimaryText: { color: C.white, fontWeight: '800', fontSize: 16 },
-  btnSecondary: { padding: 14, alignItems: 'center', marginTop: 4 },
-  btnSecondaryText: { color: C.textMuted, fontWeight: '700', fontSize: 15 },
-  btnDangerOutline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 14, marginTop: 4, borderWidth: 1, borderColor: C.dangerSoft, borderRadius: 12 },
-  btnDangerOutlineText: { color: C.danger, fontWeight: '700', fontSize: 14, marginLeft: 8 },
+  btnPrimary: { backgroundColor: C.primary, borderRadius: 12, padding: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
+  btnPrimaryText: { color: C.surface, fontWeight: '800', fontSize: 15, textTransform: 'uppercase', letterSpacing: 1 },
+  btnSecondary: { padding: 16, alignItems: 'center', marginTop: 4 },
+  btnSecondaryText: { color: C.textMuted, fontWeight: '800', fontSize: 14, textTransform: 'uppercase', letterSpacing: 0.5 },
+  btnDangerOutline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, marginTop: 4, borderWidth: 1, borderColor: C.danger, borderRadius: 12 },
+  btnDangerOutlineText: { color: C.danger, fontWeight: '800', fontSize: 14, marginLeft: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
 
   modalOverlay: { flex: 1, backgroundColor: C.overlay, justifyContent: 'center', alignItems: 'center' },
-  modalCard: { backgroundColor: C.surface, borderRadius: 24, padding: 24, width: '85%', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
-  modalTitle: { fontSize: 20, fontWeight: '800', color: C.textDark, marginBottom: 4 },
-  modalSubtitle: { fontSize: 13, color: C.textMuted, marginBottom: 20 },
-  modalInput: { backgroundColor: C.bg, color: C.textDark, borderRadius: 12, padding: 16, fontSize: 15, marginBottom: 20, minHeight: 80, textAlignVertical: 'top' },
-  modalInputCompact: { backgroundColor: C.bg, color: C.textDark, borderRadius: 12, padding: 14, fontSize: 15, marginBottom: 12 },
+  modalCard: { backgroundColor: C.surface, borderRadius: 24, padding: 24, width: '85%', borderWidth: 1, borderColor: C.borderFocus },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: C.textDark, marginBottom: 8 },
+  modalSubtitle: { fontSize: 13, color: C.textMuted, marginBottom: 24, fontWeight: '600' },
+  modalInput: { backgroundColor: C.bg, color: C.textDark, borderRadius: 12, padding: 16, fontSize: 16, fontWeight: '500', marginBottom: 24, minHeight: 100, textAlignVertical: 'top', borderWidth: 1, borderColor: C.border },
+  modalInputCompact: { backgroundColor: C.bg, color: C.textDark, borderRadius: 12, padding: 16, fontSize: 16, fontWeight: '500', marginBottom: 12, borderWidth: 1, borderColor: C.border },
+
 });
