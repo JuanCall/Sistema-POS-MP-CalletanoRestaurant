@@ -384,7 +384,28 @@ export default function App() {
   };
 
   const updateAdminMenu = (updates) => setAdmin(prev => ({ ...prev, menuData: { ...prev.menuData, ...updates } }));
-  const toggleDomingoAdmin = () => updateAdminMenu({ modoDomingo: !admin.menuData.modoDomingo, titulo: !admin.menuData.modoDomingo ? 'ESPECIALES DE DOMINGO 🍽️' : 'MENU DEL DIA 🍽️' });
+  const toggleDomingoAdmin = () => {
+    setAdmin(p => {
+      const nuevoEstado = !p.menuData.modoDomingo;
+      
+      // 🟢 BARRIDO AUTOMÁTICO: Actualiza los segundos existentes al cambiar el modo
+      const segundosActualizados = (p.menuData.segundos || []).map(s => ({
+          ...s,
+          precio: nuevoEstado ? "30" : "15",
+          taper: nuevoEstado ? ['grande'] : ['mediano']
+      }));
+
+      return {
+        ...p,
+        menuData: {
+          ...p.menuData,
+          modoDomingo: nuevoEstado,
+          titulo: nuevoEstado ? 'ESPECIALES DE DOMINGO 🍽️' : 'MENU DEL DIA 🍽️',
+          segundos: segundosActualizados
+        }
+      };
+    });
+  };
   const updateMenuArr = (tipo, idx, campo, valor) => {
     const arr = [...(admin.menuData[tipo]||[])]; arr[idx][campo] = valor; updateAdminMenu({ [tipo]: arr });
   };
@@ -488,10 +509,11 @@ export default function App() {
 
   // 🟢 NUEVO: Cerebro matemático para reflejar el precio con taper al instante en la App
   const calcularRecargoTaperMozo = (item) => {
-      if (item.modalidad === 'local') return 0; 
+      if (!item.modalidad || item.modalidad === 'local') return 0; 
       const cat = item.categoria ? item.categoria.toUpperCase().trim() : ''; 
-      const categoriasBebidas = ['JUGOS NATURALES', 'BEBIDAS HELADAS', 'BEBIDAS CALIENTES', 'CERVEZA', 'BEBIDAS'];
-      if (categoriasBebidas.includes(cat)) return 1; 
+      const nom = item.nombre ? item.nombre.toUpperCase().trim() : '';
+      
+      if (['JUGOS NATURALES', 'BEBIDAS HELADAS', 'BEBIDAS CALIENTES', 'CERVEZA', 'BEBIDAS'].includes(cat) || nom.includes('REFRESCO')) return 1; 
 
       let recargoEnvase = item.costo_taper || 0;
       if (!item.costo_taper && item.taper) {
@@ -501,7 +523,6 @@ export default function App() {
               if (t === 'mediano' || t === 'grande') recargoEnvase += 2;
           });
       } else if (!item.costo_taper && (!item.taper || item.taper.length === 0)) {
-          const nom = item.nombre ? item.nombre.toUpperCase().trim() : '';
           if (nom.includes('(ENTRADA)') || nom.includes('HUMITA') || nom.includes('ARROZ') || nom.includes('CAMOTE') || nom.includes('YUCA')) recargoEnvase += 1;
       }
       
