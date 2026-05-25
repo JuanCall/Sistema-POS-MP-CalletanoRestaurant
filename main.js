@@ -24,6 +24,8 @@ function createWindow() {
         }
     });
 
+    mainWindow.maximize();
+
     // En desarrollo, Electron cargará tu React de Vite
     // En producción, cargará los archivos compilados
     if (isDev) {

@@ -98,13 +98,34 @@ input[type="month"]::-webkit-calendar-picker-indicator {
 
 /* MAIN CONTENT */
 .erp-main-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--erp-bg); }
-.erp-topbar { height: 64px; background: var(--erp-white); border-bottom: 1px solid var(--erp-border); display: flex; align-items: center; padding: 0 2rem; flex-shrink: 0; justify-content: space-between; }
+.erp-topbar { display: none; }
 .erp-module-title { font-family: var(--font-brand); font-size: 1.4rem; color: var(--erp-text-main); margin: 0; }
 .erp-topbar-actions { display: flex; gap: 10px; }
 .erp-workspace { flex: 1; display: flex; overflow: hidden; }
 
 /* SALÓN */
-.erp-salon-area { flex: 1; overflow-y: auto; padding: 2rem; }
+.erp-salon-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0 !important; /* Quitamos el padding para que la cabecera interna pegue a los bordes */
+}
+.erp-salon-header-internal {
+  height: 52px;
+  background: var(--erp-white);
+  border-bottom: 1px solid var(--erp-border);
+  display: flex;
+  align-items: center;
+  padding: 0 1.5rem;
+  flex-shrink: 0;
+  justify-content: space-between;
+}
+.erp-salon-scroll-box {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+}
 .erp-mesas-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
 .erp-mesa-card { background: var(--erp-white); border-radius: var(--radius-md); padding: 1.5rem; border: 1px solid var(--erp-border); border-top: 4px solid var(--erp-success); box-shadow: var(--shadow-card); cursor: pointer; transition: var(--transition); display: flex; flex-direction: column; min-height: 150px; position: relative; }
 .erp-mesa-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-float); border-color: var(--erp-text-muted); }
@@ -120,12 +141,20 @@ input[type="month"]::-webkit-calendar-picker-indicator {
 .erp-mesa-total { font-size: 1.25rem; font-weight: 800; color: var(--erp-text-main); }
 
 /* COMANDERA (DATAGRID) */
-.erp-comandera { width: 440px; background: var(--erp-white); border-left: 1px solid var(--erp-border); display: flex; flex-direction: column; flex-shrink: 0; box-shadow: -4px 0 24px rgba(0,0,0,0.02); }
-.erp-com-header { padding: 1.5rem; border-bottom: 1px solid var(--erp-border); background: var(--erp-bg); }
+.erp-comandera {
+  height: 100vh;
+  width: 450px; /* 🟢 Ancho fijo e inamovible para pantallas grandes */
+  flex-shrink: 0; /* 🟢 Evita que crezca o se encoja por el contenido */
+  display: flex;
+  flex-direction: column;
+  background: var(--erp-bg);
+  border-left: 1px solid var(--erp-border); /* 🟢 Línea divisoria elegante */
+}
+.erp-com-header { padding: 0.8rem 1.5rem; border-bottom: 1px solid var(--erp-border); background: var(--erp-bg); }
 .erp-com-title { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--erp-text-muted); margin-bottom: 4px; }
 .erp-com-mesa { font-family: var(--font-brand); font-size: 1.8rem; color: var(--erp-espresso); margin: 0; line-height: 1; }
 .pos-comandera-nota { font-size: 0.75rem; color: var(--erp-text-muted); margin-top: 8px; font-weight: 600; background: var(--erp-white); padding: 6px 10px; border-radius: 6px; border: 1px dashed var(--erp-border); }
-.erp-com-toolbar { padding: 1rem 1.5rem; border-bottom: 1px solid var(--erp-border); }
+.erp-com-toolbar { padding: 0.5rem 1.5rem; border-bottom: 1px solid var(--erp-border); }
 .erp-com-list { flex: 1; overflow-y: auto; background: var(--erp-white); }
 .erp-data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 .erp-data-table th { background: var(--erp-bg); padding: 8px 16px; font-size: 0.7rem; font-weight: 800; color: var(--erp-text-muted); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--erp-border); position: sticky; top: 0; z-index: 2; text-align: left; }
