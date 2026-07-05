@@ -1,19 +1,24 @@
-# Credenciales y Seguridad (¡CRÍTICO!)
-serviceAccountKey.json
+# 🔐 Variables de entorno con claves de API
 .env
-
-# Base de datos local SQLite (Evita subir ventas locales a GitHub)
-*.db
-*.sqlite
-*.sqlite3
 
 # Dependencias
 node_modules/
 
-# Carpetas de compilación de React y ejecutables de Electron
+# Base de datos local
+calletano_local.db
+
+# Build output
 dist/
 instalador/
 
-# Archivos del sistema (Mac/Windows)
+# Logs
+logs/
+*.log
+
+# OS files
 .DS_Store
 Thumbs.db
+
+# IDE
+.vscode/
+.idea/

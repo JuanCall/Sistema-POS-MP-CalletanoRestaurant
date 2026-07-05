@@ -1,28 +1,42 @@
 {
   "name": "calletano-pos-desktop",
   "version": "1.0.0",
-  "description": "Sistema de Caja Local",
+  "description": "Calletano POS - Sistema de Punto de Venta para Restaurantes",
+  "author": {
+    "name": "Juan Calle Rosales",
+    "email": "juancallerosales19@gmail.com"
+  },
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dev": "concurrently \"cd caja-app && npm run dev\" \"electron .\"",
     "build:react": "cd caja-app && npm run build",
-    "pack": "npm run build:react && electron-builder --win"
+    "pack": "npm run build:react && electron-builder --win",
+    "test": "jest",
+    "test:watch": "jest --watch"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.17.0",
+    "bcryptjs": "^3.0.3",
     "better-sqlite3": "^11.1.2",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.6.1",
     "express": "^4.19.2",
     "firebase-admin": "^13.8.0",
-    "socket.io": "^4.7.5"
+    "socket.io": "^4.7.5",
+    "winston": "^3.19.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
+    "docx": "^9.7.1",
     "electron": "^31.2.0",
     "electron-builder": "^26.8.1",
     "electron-rebuild": "^3.2.9",
-    "nodemon": "^3.1.4"
+    "jest": "^30.0.0",
+    "nodemon": "^3.1.4",
+    "sharp": "^0.35.2"
   },
   "build": {
     "appId": "com.calletano.pos",
@@ -31,15 +45,43 @@
       "output": "instalador"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Calletano POS",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "license": "LICENSE.txt",
+      "language": "1033",
+      "runAfterFinish": true,
+      "warningsAsErrors": false,
+      "installerLanguages": [
+        "en-US",
+        "es-ES"
+      ]
     },
     "files": [
       "server.js",
       "database.js",
       "main.js",
       "serviceAccountKey.json",
-      "caja-app/dist/**/*",
-      "node_modules/**/*"
+      "LICENSE.txt",
+      ".env",
+      "assets/**/*",
+      "config/**/*",
+      "controllers/**/*",
+      "routes/**/*",
+      "services/**/*",
+      "store/**/*",
+      "utils/**/*",
+      "caja-app/dist/**/*"
     ]
   }
 }

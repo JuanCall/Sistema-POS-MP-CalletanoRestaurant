@@ -1,0 +1,42 @@
+CALLLETANO POS - LICENCIA DE USO
+==================================
+Copyright © 2026 Juan Calle Rosales
+
+1. CONCESION DE LICENCIA
+   Se otorga una licencia no exclusiva, intransferible y limitada para
+   instalar y usar este software unicamente en los equipos del restaurante
+   para el cual fue adquirido.
+
+2. PROPIEDAD INTELECTUAL
+   Todo el codigo fuente, diseno, interfaces y documentacion son propiedad
+   exclusiva del desarrollador. El licenciatario no adquiere ningun derecho
+   de propiedad sobre el software.
+
+3. RESTRICCIONES
+   - No esta permitida la distribucion, venta o alquiler del software.
+   - No esta permitida la modificacion, ingenieria inversa o descompilacion.
+   - No esta permitido su uso en equipos diferentes a los autorizados.
+
+4. SOPORTE TECNICO
+   El desarrollador proveera soporte tecnico basico durante el periodo
+   acordado. El soporte incluye asistencia remota para resolucion de
+   incidencias y actualizaciones menores.
+
+5. GARANTIA LIMITADA
+   El software se proporciona "tal cual", sin garantia de ningun tipo,
+   expresa o implicita. El desarrollador no sera responsable por danos
+   directos, indirectos, incidentales o consecuentes derivados del uso
+   del software.
+
+6. TERMINACION
+   Esta licencia termina automaticamente si el licenciatario incumple
+   cualquiera de sus terminos. Al terminar, el licenciatario debe
+   desinstalar y destruir todas las copias del software.
+
+7. JURISDICCION
+   Esta licencia se rige por las leyes de la Republica del Peru.
+   Cualquier disputa sera resuelta en los tribunales de Lima, Peru.
+
+---
+Juan Calle Rosales
+juancallerosales19@gmail.com
